@@ -1011,7 +1011,7 @@ body {
    TRIP SCREEN
 ════════════════════════════════ */
 .trip-wrap{display:flex;flex-direction:column;height:100%;}
-.steps-bar{background:var(--surface);padding:12px 20px 10px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.steps-bar{background:var(--surface);padding:12px 20px 10px;border-bottom:1px solid var(--border);flex-shrink:0;margin-top:4px;}
 .steps{display:flex;align-items:center;}
 .step-item{display:flex;align-items:center;gap:6px;flex:1;}
 .sn{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;background:var(--surface2);color:var(--text3);border:2px solid var(--border);transition:all .3s;}
@@ -1268,9 +1268,9 @@ body {
                   <span style="font-size:13px;color:var(--text2)">מרחק מהדרך</span>
                   <span style="font-size:12px;font-weight:700;color:var(--brand);background:var(--brand-pale);padding:3px 10px;border-radius:20px" id="rv">15 ק"מ</span>
                 </div>
-                <input type="range" min="5" max="50" value="15"
+                <input type="range" min="5" max="50" value="15" id="rslider"
                   style="width:100%;-webkit-appearance:none;height:4px;border-radius:4px;outline:none;cursor:pointer;background:linear-gradient(to left,var(--brand) 30%,var(--border) 30%)"
-                  oninput="this.style.background='linear-gradient(to left,var(--brand) '+(this.value-5)/45*100+'%,var(--border) '+(this.value-5)/45*100+'%)';document.getElementById('rv').textContent=this.value+' ק"מ'">
+                  oninput="updateSlider(this.value)">
               </div>
               <div class="card">
                 <div class="card-lbl">מה מחפשים?</div>
@@ -1303,6 +1303,26 @@ body {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- SAVED -->
+    <div class="screen" id="s-saved">
+      <div style="background:var(--surface);padding:10px 12px 8px;border-bottom:1px solid var(--border);flex-shrink:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:17px;font-weight:800;">📍 התחנות שלי</div>
+          <span id="saved-count" style="font-size:12px;font-weight:700;background:var(--brand);color:white;padding:2px 9px;border-radius:20px;">0</span>
+        </div>
+        <div style="display:flex;gap:7px;overflow-x:auto;padding:8px 0 2px;scrollbar-width:none;">
+          <div class="hcat on all" onclick="filterSaved(this,'all')">🗺 הכל</div>
+          <div class="hcat hike"   onclick="filterSaved(this,'hike')">🥾 טיול</div>
+          <div class="hcat coffee" onclick="filterSaved(this,'coffee')">☕ קפה</div>
+          <div class="hcat food"   onclick="filterSaved(this,'food')">🍽 אוכל</div>
+          <div class="hcat view"   onclick="filterSaved(this,'view')">🌅 תצפית</div>
+          <div class="hcat beach"  onclick="filterSaved(this,'beach')">🏖 חוף</div>
+          <div class="hcat art"    onclick="filterSaved(this,'art')">🎨 אמנות</div>
+        </div>
+      </div>
+      <div id="saved-list" style="padding:12px 12px 100px;overflow-y:auto;"></div>
     </div>
 
     <!-- PROFILE -->
@@ -1352,7 +1372,7 @@ body {
       <div class="ni-ic">🗺</div><div class="ni-lb">טיול</div>
     </div>
     <div class="ni-fab" onclick="goTo('add')">＋</div>
-    <div class="ni" id="ni-saved" onclick="goTo('home')">
+    <div class="ni" id="ni-saved" onclick="goTo('saved')">
       <div class="ni-ic">📍</div><div class="ni-lb">שמורים</div>
     </div>
     <div class="ni" id="ni-profile" onclick="goTo('profile')">
@@ -1388,6 +1408,17 @@ let bsExp = false;
 let lastResult = null;
 
 const routeCoords = [[32.085,34.782],[32.165,34.820],[32.260,34.860],[32.350,34.875],[32.440,34.895],[32.500,34.893],[32.570,34.920],[32.618,34.948],[32.690,34.970],[32.745,34.990],[32.819,34.989]];
+
+// ── SLIDER ──
+function updateSlider(val) {
+  var el = document.getElementById("rv");
+  if (el) el.textContent = val + ' ק"מ';
+  var slider = document.getElementById("rslider");
+  if (slider) {
+    var pct = (val-5)/45*100;
+    slider.style.background = "linear-gradient(to left,var(--brand) " + pct + "%,var(--border) " + pct + "%)";
+  }
+}
 
 // ── LOCALSTORAGE DB ──
 function loadPlaces() {
@@ -1439,11 +1470,12 @@ function goTo(screen) {
   nextEl.style.display = flexScreens.includes(screen) ? "flex" : "block";
   nextEl.classList.add("active");
   document.querySelectorAll(".ni").forEach(el => el.classList.remove("active"));
-  const navMap = {home:"ni-home", add:"ni-home", trip:"ni-trip", profile:"ni-profile"};
+  const navMap = {home:"ni-home", add:"ni-home", trip:"ni-trip", profile:"ni-profile", saved:"ni-saved"};
   const navEl = document.getElementById(navMap[screen]);
   if (navEl) navEl.classList.add("active");
   if (screen === "home") setTimeout(() => { if(homeMap) homeMap.invalidateSize(); renderHomeMap(); }, 100);
   if (screen === "profile") document.getElementById("prof-count").textContent = places.length;
+  if (screen === "saved") renderSaved("all");
   if (screen === "trip") resetTripSteps();
 }
 
@@ -1671,7 +1703,7 @@ async function geocodeLocation() {
   status.style.display = "block";
   status.textContent = "מחפש...";
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc + " ישראל")}&format=json&limit=1&accept-language=he`);
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc)}&format=json&limit=3&accept-language=he,en&countrycodes=il`);
     const data = await res.json();
     if (data && data.length > 0) {
       const lat = parseFloat(data[0].lat);
@@ -1752,43 +1784,181 @@ function setStep(n) {
   });
 }
 
-function startTrip() {
+async function startTrip() {
   const from = document.getElementById("t-from").value || "תל אביב";
   const to   = document.getElementById("t-to").value   || "חיפה";
   document.getElementById("tp1").classList.remove("active");
   document.getElementById("tp2").classList.add("active");
   setStep(2);
-  document.getElementById("bs-meta").textContent = from + " → " + to + " · 97 ק\"מ";
   document.getElementById("bs-cnt").textContent = places.length;
-  document.getElementById("bs-title").textContent = places.length + " תחנות בדרך 🎉";
+  document.getElementById("bs-title").textContent = places.length + " תחנות בדרך";
   buildBS();
-  setTimeout(() => {
-    if (!tripMap) {
-      tripMap = L.map("trip-map", {
-        center:[32.45,34.9], zoom:9,
-        zoomControl:false,
-        minZoom:7, maxZoom:18
-      });
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {attribution:"© OpenStreetMap", maxZoom:19}).addTo(tripMap);
-      L.control.zoom({position:"bottomleft"}).addTo(tripMap);
+
+  // Geocode cities dynamically
+  async function geocodeCity(name) {
+    // Try multiple queries to improve success rate
+    var queries = [
+      name + " ישראל",
+      name + " Israel",
+      name,
+    ];
+    // Special cases
+    var aliases = {
+      "בן גוריון": "Ben Gurion Airport Israel",
+      "שדה תעופה בן גוריון": "Ben Gurion International Airport",
+      "שדה תעופה": "Ben Gurion Airport Israel",
+      "ירושלים": "Jerusalem Israel",
+      "תל אביב": "Tel Aviv Israel",
+      "חיפה": "Haifa Israel",
+      "אילת": "Eilat Israel",
+      "באר שבע": "Beer Sheva Israel",
+    };
+    if (aliases[name]) queries.unshift(aliases[name]);
+
+    for (var q of queries) {
+      try {
+        const r = await fetch("https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(q) + "&format=json&limit=1&accept-language=he,en&countrycodes=il");
+        const d = await r.json();
+        if (d && d.length > 0) return [parseFloat(d[0].lat), parseFloat(d[0].lon)];
+      } catch(e) {}
     }
-    tripMap.invalidateSize();
-    L.polyline(routeCoords, {color:"#2C6E5A", weight:5, opacity:.85, dashArray:"12,7"}).addTo(tripMap);
-    const pin = (lbl,bg) => L.divIcon({html:`<div style="width:24px;height:24px;border-radius:50%;background:${bg};border:2.5px solid white;box-shadow:0 2px 7px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;font-family:Heebo,sans-serif">${lbl}</div>`,iconSize:[24,24],iconAnchor:[12,12],className:""});
-    L.marker([32.085,34.782],{icon:pin("א","#2C6E5A")}).addTo(tripMap).bindTooltip("תל אביב",{direction:"left"});
-    L.marker([32.819,34.989],{icon:pin("ב","#E85D3A")}).addTo(tripMap).bindTooltip("חיפה",{direction:"right"});
-    tripMarkers.forEach(m => tripMap.removeLayer(m)); tripMarkers = [];
-    places.forEach((p,i) => {
-      const m = L.marker([p.lat||32.08, p.lng||34.78], {
-        icon: L.divIcon({html:`<div style="width:36px;height:36px;border-radius:50%;background:${CC[p.cat]||"#2C6E5A"};border:3px solid white;box-shadow:0 3px 10px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;font-size:16px;">${CE[p.cat]||"📍"}</div>`,iconSize:[36,36],iconAnchor:[18,36],popupAnchor:[0,-40],className:""})
-      }).addTo(tripMap);
-      m.bindPopup(`<div class="pw"><div class="pw-name">${p.name}</div><div class="pw-sub">${CN[p.cat]||p.cat} · ${p.loc||""}</div><div class="pw-meta"><span class="pw-src" style="${SS[p.src]||""}">${SL[p.src]||p.src}</span><span class="pw-time">${p.time||""}</span></div><a class="pw-link" href="${p.url||"#"}" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>`,{className:"custom-popup",maxWidth:215});
-      m.on("click",()=>activateBSCard(i));
-      tripMarkers.push(m);
+    return null;
+  }
+
+  const [fromCoords, toCoords] = await Promise.all([geocodeCity(from), geocodeCity(to)]);
+  const fromLL = fromCoords || [32.085, 34.782];
+  const toLL   = toCoords   || [32.819, 34.989];
+  const dist = Math.round(Math.sqrt(Math.pow((fromLL[0]-toLL[0])*111,2) + Math.pow((fromLL[1]-toLL[1])*85,2)));
+  document.getElementById("bs-meta").textContent = from + " ← " + to + " · ~" + dist + ' ק"מ';
+
+  if (!tripMap) {
+    tripMap = L.map("trip-map", {center:[32.45,34.9], zoom:9, zoomControl:false, minZoom:7, maxZoom:18});
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {attribution:"© OpenStreetMap", maxZoom:19}).addTo(tripMap);
+    L.control.zoom({position:"bottomleft"}).addTo(tripMap);
+  }
+  tripMap.invalidateSize();
+
+  // Clear old layers
+  tripMap.eachLayer(function(l) {
+    if (l instanceof L.Polyline || l._pin) tripMap.removeLayer(l);
+  });
+
+  // Draw real road route via OSRM
+  try {
+    const osrmUrl = "https://router.project-osrm.org/route/v1/driving/" +
+      fromLL[1] + "," + fromLL[0] + ";" +
+      toLL[1]   + "," + toLL[0]   +
+      "?overview=full&geometries=geojson";
+    const osrmRes = await fetch(osrmUrl);
+    const osrmData = await osrmRes.json();
+    if (osrmData.routes && osrmData.routes[0]) {
+      const coords = osrmData.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      const km = Math.round(osrmData.routes[0].distance / 1000);
+      const mins = Math.round(osrmData.routes[0].duration / 60);
+      const hrs = Math.floor(mins / 60);
+      const rem = mins % 60;
+      const timeStr = hrs > 0 ? hrs + ":" + String(rem).padStart(2,"0") + " שע'" : mins + " דק'";
+      document.getElementById("bs-meta").textContent = from + " ← " + to + " · " + km + ' ק"מ · ' + timeStr;
+      L.polyline(coords, {color:"#2C6E5A", weight:5, opacity:.85}).addTo(tripMap);
+    } else {
+      L.polyline([fromLL, toLL], {color:"#2C6E5A", weight:5, opacity:.85, dashArray:"12,7"}).addTo(tripMap);
+    }
+  } catch(e) {
+    L.polyline([fromLL, toLL], {color:"#2C6E5A", weight:5, opacity:.85, dashArray:"12,7"}).addTo(tripMap);
+  }
+
+  // From/To pins
+  function makePinIcon(lbl, bg) {
+    return L.divIcon({
+      html: '<div style="width:26px;height:26px;border-radius:50%;background:' + bg + ';border:2.5px solid white;box-shadow:0 2px 7px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;">' + lbl + '</div>',
+      iconSize:[26,26], iconAnchor:[13,13], className:""
     });
-    tripMap.fitBounds([[32.085,34.782],[32.819,35.18]],{padding:[30,55]});
-    setTimeout(() => { if(tripMarkers[0]) tripMarkers[0].openPopup(); }, 800);
-  }, 100);
+  }
+
+  var mFrom = L.marker(fromLL, {icon:makePinIcon("א","#2C6E5A")}).addTo(tripMap).bindTooltip(from);
+  var mTo   = L.marker(toLL,   {icon:makePinIcon("ב","#E85D3A")}).addTo(tripMap).bindTooltip(to);
+  mFrom._pin = true; mTo._pin = true;
+
+  tripMap.fitBounds([fromLL, toLL], {padding:[60,60]});
+
+  // Get radius from slider (km)
+  var radiusKm = parseInt(document.getElementById("rslider").value) || 15;
+
+  // Function: distance in km between two lat/lng points
+  function distKm(lat1, lng1, lat2, lng2) {
+    var R = 6371;
+    var dLat = (lat2-lat1) * Math.PI/180;
+    var dLng = (lng2-lng1) * Math.PI/180;
+    var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+            Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
+            Math.sin(dLng/2)*Math.sin(dLng/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  // Function: min distance from point to polyline
+  function minDistToRoute(lat, lng, routeCoords) {
+    var minD = Infinity;
+    for (var j = 0; j < routeCoords.length; j++) {
+      var d = distKm(lat, lng, routeCoords[j][0], routeCoords[j][1]);
+      if (d < minD) minD = d;
+    }
+    return minD;
+  }
+
+  // Get actual route coords from the polyline
+  var routeLatLngs = [];
+  tripMap.eachLayer(function(l) {
+    if (l instanceof L.Polyline && !l._pin) {
+      routeLatLngs = l.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+    }
+  });
+
+  // Filter places by distance from route
+  var nearbyPlaces = places.filter(function(p) {
+    if (!p.lat || !p.lng) return false;
+    if (routeLatLngs.length === 0) return true;
+    var d = minDistToRoute(p.lat, p.lng, routeLatLngs);
+    return d <= radiusKm;
+  });
+
+  // Update bottom sheet count
+  document.getElementById("bs-cnt").textContent = nearbyPlaces.length;
+  document.getElementById("bs-title").textContent = nearbyPlaces.length + " תחנות בדרך";
+  buildBSFiltered(nearbyPlaces);
+
+  // Place markers (only nearby)
+  tripMarkers.forEach(function(m) { tripMap.removeLayer(m); });
+  tripMarkers = [];
+  nearbyPlaces.forEach(function(p, i) {
+    if (!p.lat || !p.lng) return;
+    var color = CC[p.cat] || "#2C6E5A";
+    var emoji = CE[p.cat] || "📍";
+    var realDist = routeLatLngs.length > 0 ? Math.round(minDistToRoute(p.lat, p.lng, routeLatLngs)*10)/10 : "?";
+    var m = L.marker([p.lat, p.lng], {
+      icon: L.divIcon({
+        html: '<div style="width:36px;height:36px;border-radius:50%;background:' + color + ';border:3px solid white;box-shadow:0 3px 10px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;font-size:16px;">' + emoji + '</div>',
+        iconSize:[36,36], iconAnchor:[18,36], popupAnchor:[0,-40], className:""
+      })
+    }).addTo(tripMap);
+    var popup = '<div class="pw"><div class="pw-name">' + p.name + '</div><div class="pw-sub">' + (CN[p.cat]||p.cat) + ' · ' + (p.loc||"") + ' · ' + realDist + ' ק"מ מהמסלול</div><a class="pw-link" href="' + (p.url||"#") + '" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>';
+    m.bindPopup(popup, {className:"custom-popup", maxWidth:215});
+    m.on("click", function() { activateBSCard(i); });
+    tripMarkers.push(m);
+  });
+  setTimeout(function() { if(tripMarkers[0]) tripMarkers[0].openPopup(); }, 800);
+}
+
+function buildBSFiltered(arr) {
+  const cr = document.getElementById("bs-cards"); cr.innerHTML = "";
+  const lr = document.getElementById("bs-list");  lr.innerHTML = "";
+  arr.forEach((p,i) => {
+    const c = document.createElement("div"); c.className="bsc"+(i===0?" on":""); c.id="bsc-"+i;
+    c.innerHTML="<div class=\"bsc-ic\">"+CE[p.cat]+"</div><div class=\"bsc-nm\">"+p.name+"</div><span class=\"bsc-tag\" style=\"background:"+CC[p.cat]+"\">"+(CN[p.cat]||p.cat)+"</span><div class=\"bsc-d\">📍 "+(p.loc||"")+"</div>";
+    c.onclick=()=>activateBSCard(i); cr.appendChild(c);
+    const li = document.createElement("div"); li.className="bsl"+(i===0?" on":""); li.id="bsl-"+i;
+    li.innerHTML="<div class=\"bsl-ic\">"+CE[p.cat]+"</div><div style=\"flex:1;min-width:0;\"><div class=\"bsl-nm\">"+p.name+"</div><div class=\"bsl-row\"><span class=\"bsl-tag\" style=\"background:"+CC[p.cat]+"\">"+(CN[p.cat]||p.cat)+"</span><span class=\"bsl-dist\">📍 "+(p.loc||"")+"</span></div></div>";
+    li.onclick=()=>activateBSCard(i); lr.appendChild(li);
+  });
 }
 
 function buildBS() {
@@ -1815,6 +1985,31 @@ function toggleBS() {
   bsExp = !bsExp;
   document.getElementById("bs").classList.toggle("exp", bsExp);
   if (tripMap) setTimeout(()=>tripMap.invalidateSize(), 320);
+}
+
+// ── SAVED SCREEN ──
+var savedCatFilter = "all";
+function filterSaved(el, cat) {
+  document.querySelectorAll("#s-saved .hcat").forEach(c => c.classList.remove("on"));
+  el.classList.add("on");
+  savedCatFilter = cat;
+  renderSaved(cat);
+}
+
+function renderSaved(cat) {
+  const filtered = cat === "all" ? places : places.filter(p => p.cat === cat);
+  const el = document.getElementById("saved-list");
+  const countEl = document.getElementById("saved-count");
+  if (countEl) countEl.textContent = filtered.length;
+  if (!el) return;
+  if (filtered.length === 0) {
+    el.innerHTML = "<div style=\"text-align:center;padding:48px 24px;color:var(--text2);\"><div style=\"font-size:40px;margin-bottom:12px;\">📍</div><div style=\"font-size:15px;font-weight:700;\">אין תחנות עדיין</div><div style=\"font-size:12px;margin-top:6px;\">לחצי + כדי להוסיף</div></div>";
+    return;
+  }
+  el.innerHTML = filtered.map((p, i) => {
+    const realIdx = places.indexOf(p);
+    return "<div style=\"display:flex;gap:12px;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid var(--border);cursor:pointer;\" onclick=\"goTo('home')\"><div style=\"width:46px;height:46px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;margin-bottom:3px;\">" + p.name + "</div><div style=\"font-size:11px;color:var(--text2);margin-bottom:6px;\">📍 " + (p.loc||"") + " · " + (p.time||"") + "</div><div style=\"display:flex;gap:6px;\"><span style=\"font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;color:white;background:" + (CC[p.cat]||"#2C6E5A") + "\">" + (CN[p.cat]||p.cat) + "</span></div></div><div style=\"display:flex;flex-direction:column;gap:6px;\"><button onclick=\"event.stopPropagation();editPlace(" + realIdx + ")\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;\">✏️</button><button onclick=\"event.stopPropagation();deletePlace(" + realIdx + ")\" style=\"background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;\">🗑</button></div></div>";
+  }).join("");
 }
 
 // ── THEME ──
