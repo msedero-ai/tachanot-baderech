@@ -1464,6 +1464,13 @@ function importPlaces(file) {
 // ── NAVIGATION ──
 function goTo(screen) {
   if (curScreen === screen) return;
+  // Cancel any pending edit when leaving the add screen, so the next save
+  // doesn't accidentally delete the place we were editing.
+  if (curScreen === "add" && window._editIdx !== undefined) {
+    window._editIdx = undefined;
+    const cancelBtn = document.querySelector("#s-add .res-body .btn-primary");
+    if (cancelBtn) cancelBtn.textContent = "💾 שמור תחנה";
+  }
   const prevEl = document.getElementById("s-" + curScreen);
   prevEl.style.display = "none";
   prevEl.classList.remove("active");
@@ -1605,7 +1612,7 @@ async function analyzeLink() {
     }
   }, 900);
   try {
-    const response = await fetch("/.netlify/functions/analyze", {
+    const response = await fetch("/api/analyze", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({url, extraDesc})
@@ -1619,9 +1626,19 @@ async function analyzeLink() {
     }
   } catch(e) {
     clearInterval(iv);
-    // Use the text the user typed as fallback
+    an.classList.remove("show");
+    btn.disabled = false;
+    // The AI didn't run — open the form pre-filled with what the user typed,
+    // WITHOUT inventing a location. confidence:0 + no coords makes that clear.
     const fallbackName = extraDesc ? extraDesc.split(",")[0].trim() : "מקום חדש";
-    showResult({name:fallbackName,category:"hike",location:extraDesc||"ישראל",description:extraDesc||"",lat:32.08,lng:34.78,confidence:40,emoji:"📍"}, url);
+    showResult({name:fallbackName,category:"hike",location:extraDesc||"",description:extraDesc||"",lat:null,lng:null,confidence:0,emoji:"📍"}, url);
+    const status = document.getElementById("geo-status");
+    if (status) {
+      status.style.display = "block";
+      status.textContent = "⚠️ הניתוח האוטומטי לא זמין — מלא/י את הפרטים ולחצ/י 📍 מצא לאיתור המיקום";
+      status.style.color = "var(--accent)";
+    }
+    return;
   }
   an.classList.remove("show");
   btn.disabled = false;
@@ -1684,14 +1701,9 @@ function editPlace(idx) {
     document.getElementById("conf-fill").style.width = "90%";
     document.getElementById("conf-pct").textContent = "90%";
     document.getElementById("res-card").classList.add("show");
-    // Remove old place when saving
+    // Mark edit mode: savePlace() reads window._editIdx to replace the old place.
     const saveBtn = document.querySelector("#s-add .res-body .btn-primary");
-    if (saveBtn) {
-      saveBtn.dataset.editIdx = idx;
-      saveBtn.textContent = "💾 עדכן תחנה";
-    }
-    // Delete old on save
-    const origSave = window._editIdx;
+    if (saveBtn) saveBtn.textContent = "💾 עדכן תחנה";
     window._editIdx = idx;
   }, 100);
 }
