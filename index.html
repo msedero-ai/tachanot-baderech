@@ -1358,8 +1358,22 @@ body {
           </div>
         </div>
         <div class="card">
+          <div class="card-lbl">סנכרון ענן ☁️</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">התחנות נשמרות אוטומטית בענן. כדי לסנכרן מכשיר נוסף — הזן בו את אותו קוד.</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="font-size:12px;color:var(--text2)">הקוד שלך:</span>
+            <code id="sync-code" style="font-size:16px;font-weight:800;letter-spacing:2px;color:var(--brand)">—</code>
+            <button class="btn-sec" style="padding:4px 10px;font-size:12px;cursor:pointer" onclick="copySyncCode()">📋 העתק</button>
+          </div>
+          <div id="sync-status" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
+          <div style="display:flex;gap:8px">
+            <input id="sync-input" placeholder="הזן קוד לחיבור מכשיר" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:Heebo,sans-serif;font-size:14px;background:var(--surface);color:var(--text)">
+            <button class="btn-primary" style="padding:9px 16px;font-size:13px;white-space:nowrap" onclick="applySyncCode()">חבר</button>
+          </div>
+        </div>
+        <div class="card">
           <div class="card-lbl">אודות</div>
-          <div style="font-size:13px;color:var(--text2);line-height:1.7">תחנות בדרך עוזרת לשמור מקומות שמוצאים ברשתות ולמצוא אותם בדרך. כל התחנות נשמרות במכשיר שלך.</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.7">תחנות בדרך עוזרת לשמור מקומות שמוצאים ברשתות ולמצוא אותם בדרך. התחנות נשמרות בענן ומסונכרנות בין המכשירים שלך עם קוד הסנכרון.</div>
         </div>
       </div>
     </div>
@@ -1384,6 +1398,10 @@ body {
   </div>
 </div>
 
+<!-- Firebase (compat build — exposes the global `firebase`) -->
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore-compat.js"></script>
 <script>
 /* @preserve
  * Leaflet 1.9.4, a JS library for interactive maps. https://leafletjs.com
@@ -1418,6 +1436,103 @@ let bsExp = false;
 let lastResult = null;
 
 const routeCoords = [[32.085,34.782],[32.165,34.820],[32.260,34.860],[32.350,34.875],[32.440,34.895],[32.500,34.893],[32.570,34.920],[32.618,34.948],[32.690,34.970],[32.745,34.990],[32.819,34.989]];
+
+// ── CLOUD SYNC (Firebase Firestore) ──
+const firebaseConfig = {
+  apiKey: "AIzaSyDuNzqB6oPWkVUk5COMjl6GB0SA6D_Ot5E",
+  authDomain: "tachanot-baderech.firebaseapp.com",
+  projectId: "tachanot-baderech",
+  storageBucket: "tachanot-baderech.firebasestorage.app",
+  messagingSenderId: "598998008121",
+  appId: "1:598998008121:web:25316e97dfd005236268e8"
+};
+let db = null, cloudReady = false, cloudUnsub = null;
+
+// Each device has a short sync code (in localStorage). Enter the same code on
+// another device to share the same collection.
+function syncCode() {
+  let c = localStorage.getItem("tachanot_sync");
+  if (!c) { c = Math.random().toString(36).slice(2, 8).toUpperCase(); localStorage.setItem("tachanot_sync", c); }
+  return c;
+}
+
+async function initCloud() {
+  if (typeof firebase === "undefined") { updateSyncUI(); return; }
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    await firebase.auth().signInAnonymously();
+    cloudReady = true;
+    updateSyncUI();
+    startCloudWatch();
+  } catch (e) {
+    console.warn("Cloud sync unavailable:", e);
+    updateSyncUI();
+  }
+}
+
+function startCloudWatch() {
+  if (!db || !cloudReady) return;
+  if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
+  const code = syncCode();
+  // First time on this code: upload existing local places (merge collections).
+  if (!localStorage.getItem("tachanot_migrated_" + code)) {
+    places.forEach(p => cloudPush(p));
+    localStorage.setItem("tachanot_migrated_" + code, "1");
+  }
+  cloudUnsub = db.collection("places").where("sync", "==", code).onSnapshot(snap => {
+    const arr = [];
+    snap.forEach(d => arr.push({ ...d.data(), id: d.id }));
+    arr.sort((a, b) => ((b.createdAt && b.createdAt.seconds) || 0) - ((a.createdAt && a.createdAt.seconds) || 0) || (String(b.id) > String(a.id) ? 1 : -1));
+    places = arr;
+    savePlaces();
+    rerenderAll();
+  }, err => console.warn("snapshot error:", err));
+}
+
+function cloudPush(p) {
+  if (!db || !cloudReady) return;
+  db.collection("places").doc(String(p.id)).set({
+    name: p.name || "", cat: p.cat || "hike", loc: p.loc || "", desc: p.desc || "",
+    lat: (p.lat == null ? null : p.lat), lng: (p.lng == null ? null : p.lng),
+    src: p.src || "tt", url: p.url || "", time: p.time || "",
+    sync: syncCode(), createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true }).catch(e => console.warn("cloud push failed:", e));
+}
+
+function cloudRemove(id) {
+  if (!db || !cloudReady || id == null) return;
+  db.collection("places").doc(String(id)).delete().catch(e => console.warn("cloud remove failed:", e));
+}
+
+function rerenderAll() {
+  const hc = document.getElementById("hs-count"); if (hc) hc.textContent = places.length;
+  renderHomeMap();
+  if (curScreen === "saved") renderSaved(savedCatFilter);
+  if (curScreen === "profile") { const pc = document.getElementById("prof-count"); if (pc) pc.textContent = places.length; }
+}
+
+function updateSyncUI() {
+  const el = document.getElementById("sync-code"); if (el) el.textContent = syncCode();
+  const st = document.getElementById("sync-status");
+  if (st) st.textContent = cloudReady ? "☁️ מחובר ומסונכרן" : "⚠️ לא מחובר לענן — נשמר מקומית בלבד";
+}
+
+function copySyncCode() {
+  const c = syncCode();
+  if (navigator.clipboard) navigator.clipboard.writeText(c);
+  const st = document.getElementById("sync-status"); if (st) st.textContent = "הקוד הועתק ✓ — הזן אותו במכשיר אחר";
+}
+
+function applySyncCode() {
+  const inp = document.getElementById("sync-input");
+  const v = ((inp && inp.value) || "").trim().toUpperCase();
+  if (!v) return;
+  localStorage.setItem("tachanot_sync", v);
+  if (inp) inp.value = "";
+  updateSyncUI();
+  if (cloudReady) startCloudWatch(); else initCloud();
+}
 
 // ── SLIDER ──
 function updateSlider(val) {
@@ -1460,6 +1575,7 @@ function importPlaces(file) {
       if (Array.isArray(imported)) {
         places = [...imported, ...places.filter(p => !imported.find(i => i.id === p.id))];
         savePlaces();
+        imported.forEach(p => { if (p && p.id != null) cloudPush(p); });
         renderHomeMap();
         alert("יובאו " + imported.length + " תחנות!");
       }
@@ -1491,7 +1607,7 @@ function goTo(screen) {
   const navEl = document.getElementById(navMap[screen]);
   if (navEl) navEl.classList.add("active");
   if (screen === "home") setTimeout(() => { if(homeMap) homeMap.invalidateSize(); renderHomeMap(); }, 100);
-  if (screen === "profile") document.getElementById("prof-count").textContent = places.length;
+  if (screen === "profile") { document.getElementById("prof-count").textContent = places.length; updateSyncUI(); }
   if (screen === "saved") renderSaved("all");
   if (screen === "trip") resetTripSteps();
 }
@@ -1680,6 +1796,7 @@ function deletePlace(idx) {
   const p = places[idx];
   if (!p) return;
   if (!confirm(`למחוק את "${p.name}"?`)) return;
+  cloudRemove(p.id);
   places.splice(idx, 1);
   savePlaces();
   renderHomeMap();
@@ -1759,8 +1876,10 @@ function savePlace() {
   const se = document.querySelector("#s-add .chip.tt.on, #s-add .chip.ig.on, #s-add .chip.fb.on, #s-add .chip.wa.on");
   const src = se ? [...se.classList].find(c => ["tt","ig","fb","wa"].includes(c)) : "tt";
 
-  // Edit mode: remove old place first
+  // Edit mode: remove old place first (locally + in the cloud)
   if (window._editIdx !== undefined && window._editIdx >= 0) {
+    const oldPlace = places[window._editIdx];
+    if (oldPlace) cloudRemove(oldPlace.id);
     places.splice(window._editIdx, 1);
     window._editIdx = undefined;
     // Reset save button
@@ -1776,6 +1895,7 @@ function savePlace() {
   };
   places.unshift(newPlace);
   savePlaces();
+  cloudPush(newPlace);
   document.getElementById("res-card").classList.remove("show");
   document.getElementById("ok-sub").textContent = `"${name}" נשמרה!`;
   document.getElementById("ok-card").classList.add("show");
@@ -2069,6 +2189,7 @@ document.getElementById("screens-wrap").addEventListener("wheel", function(e){
 // ── INIT ──
 loadPlaces();
 setTimeout(() => { initHomeMap(); renderHomeMap(); }, 200);
+initCloud();
 
 </script>
 </body>
