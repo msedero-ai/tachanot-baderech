@@ -1399,6 +1399,13 @@ const CN = {hike:"טיול רגלי",coffee:"עגלת קפה",food:"מסעדה",
 const SL = {ig:"📸 Insta",tt:"▶ TikTok",fb:"👍 FB",wa:"📱 WA"};
 const SS = {ig:"background:#FDEEF2;color:#C0185A",tt:"background:#E6F9F1;color:#0A7A3A",fb:"background:#E8F0FC;color:#1650B0",wa:"background:#E8F7EE;color:#0A7A3A"};
 
+// ── HTML ESCAPING ──
+// User-supplied text (name/loc/desc) and imported JSON are inserted via innerHTML,
+// so escape them to avoid broken layout and script injection.
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+// Only allow http(s) links in hrefs — blocks javascript:/data: URLs.
+function safeUrl(u){u=String(u==null?"":u);return /^https?:\/\//i.test(u)?u:"#";}
+
 // ── STATE ──
 let places = [];
 let curScreen = "home";
@@ -1530,7 +1537,7 @@ function renderHomeMap() {
         iconSize:[38,38], iconAnchor:[19,38], popupAnchor:[0,-42], className:""
       })
     }).addTo(homeMap);
-    m.bindPopup(`<div class="pw"><div class="pw-name">${p.name}</div><div class="pw-sub">${CN[p.cat]||p.cat} · ${p.loc||""}</div><div class="pw-meta"><span class="pw-src" style="${SS[p.src]||""}">${SL[p.src]||p.src}</span><span class="pw-time">${p.time||""}</span></div><a class="pw-link" href="${p.url||"#"}" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>`, {className:"custom-popup", maxWidth:215});
+    m.bindPopup(`<div class="pw"><div class="pw-name">${esc(p.name)}</div><div class="pw-sub">${esc(CN[p.cat]||p.cat)} · ${esc(p.loc||"")}</div><div class="pw-meta"><span class="pw-src" style="${SS[p.src]||""}">${esc(SL[p.src]||p.src)}</span><span class="pw-time">${esc(p.time||"")}</span></div><a class="pw-link" href="${safeUrl(p.url)}" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>`, {className:"custom-popup", maxWidth:215});
     m.on("click", () => selectHomeCard(i));
     homeMarkers.push(m);
     bounds.push([p.lat, p.lng]);
@@ -1549,12 +1556,12 @@ function renderHomeMap() {
     c.innerHTML = `
       <div class="hc-top">
         <div class="hc-icon">${CE[p.cat]||"📍"}</div>
-        <div class="hc-name">${p.name}</div>
+        <div class="hc-name">${esc(p.name)}</div>
         <button onclick="event.stopPropagation();deletePlace(${realIdx})" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:2px 4px;flex-shrink:0;line-height:1;">🗑</button>
       </div>
       <div class="hc-meta">
         <span class="hc-tag" style="background:${CC[p.cat]||"#2C6E5A"}">${CN[p.cat]||p.cat}</span>
-        <span class="hc-src src-${p.src||"oth"}">${SL[p.src]||p.src}</span>
+        <span class="hc-src src-${esc(p.src||"oth")}">${esc(SL[p.src]||p.src)}</span>
         <button onclick="event.stopPropagation();editPlace(${realIdx})" style="background:none;border:none;color:var(--brand);cursor:pointer;font-size:11px;font-weight:700;padding:2px 6px;margin-right:auto;font-family:Heebo,sans-serif;">✏️ ערוך</button>
       </div>`;
     c.onclick = () => selectHomeCard(i);
@@ -1955,7 +1962,7 @@ async function startTrip() {
         iconSize:[36,36], iconAnchor:[18,36], popupAnchor:[0,-40], className:""
       })
     }).addTo(tripMap);
-    var popup = '<div class="pw"><div class="pw-name">' + p.name + '</div><div class="pw-sub">' + (CN[p.cat]||p.cat) + ' · ' + (p.loc||"") + ' · ' + realDist + ' ק"מ מהמסלול</div><a class="pw-link" href="' + (p.url||"#") + '" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>';
+    var popup = '<div class="pw"><div class="pw-name">' + esc(p.name) + '</div><div class="pw-sub">' + esc(CN[p.cat]||p.cat) + ' · ' + esc(p.loc||"") + ' · ' + realDist + ' ק"מ מהמסלול</div><a class="pw-link" href="' + safeUrl(p.url) + '" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>';
     m.bindPopup(popup, {className:"custom-popup", maxWidth:215});
     m.on("click", function() { activateBSCard(i); });
     tripMarkers.push(m);
@@ -1968,10 +1975,10 @@ function buildBSFiltered(arr) {
   const lr = document.getElementById("bs-list");  lr.innerHTML = "";
   arr.forEach((p,i) => {
     const c = document.createElement("div"); c.className="bsc"+(i===0?" on":""); c.id="bsc-"+i;
-    c.innerHTML="<div class=\"bsc-ic\">"+CE[p.cat]+"</div><div class=\"bsc-nm\">"+p.name+"</div><span class=\"bsc-tag\" style=\"background:"+CC[p.cat]+"\">"+(CN[p.cat]||p.cat)+"</span><div class=\"bsc-d\">📍 "+(p.loc||"")+"</div>";
+    c.innerHTML="<div class=\"bsc-ic\">"+CE[p.cat]+"</div><div class=\"bsc-nm\">"+esc(p.name)+"</div><span class=\"bsc-tag\" style=\"background:"+CC[p.cat]+"\">"+esc(CN[p.cat]||p.cat)+"</span><div class=\"bsc-d\">📍 "+esc(p.loc||"")+"</div>";
     c.onclick=()=>activateBSCard(i); cr.appendChild(c);
     const li = document.createElement("div"); li.className="bsl"+(i===0?" on":""); li.id="bsl-"+i;
-    li.innerHTML="<div class=\"bsl-ic\">"+CE[p.cat]+"</div><div style=\"flex:1;min-width:0;\"><div class=\"bsl-nm\">"+p.name+"</div><div class=\"bsl-row\"><span class=\"bsl-tag\" style=\"background:"+CC[p.cat]+"\">"+(CN[p.cat]||p.cat)+"</span><span class=\"bsl-dist\">📍 "+(p.loc||"")+"</span></div></div>";
+    li.innerHTML="<div class=\"bsl-ic\">"+CE[p.cat]+"</div><div style=\"flex:1;min-width:0;\"><div class=\"bsl-nm\">"+esc(p.name)+"</div><div class=\"bsl-row\"><span class=\"bsl-tag\" style=\"background:"+CC[p.cat]+"\">"+esc(CN[p.cat]||p.cat)+"</span><span class=\"bsl-dist\">📍 "+esc(p.loc||"")+"</span></div></div>";
     li.onclick=()=>activateBSCard(i); lr.appendChild(li);
   });
 }
@@ -1981,10 +1988,10 @@ function buildBS() {
   const lr = document.getElementById("bs-list");  lr.innerHTML = "";
   places.forEach((p,i) => {
     const c = document.createElement("div"); c.className="bsc"+(i===0?" on":""); c.id="bsc-"+i;
-    c.innerHTML=`<div class="bsc-ic">${CE[p.cat]||"📍"}</div><div class="bsc-nm">${p.name}</div><span class="bsc-tag" style="background:${CC[p.cat]||"#2C6E5A"}">${CN[p.cat]||p.cat}</span><div class="bsc-d">📍 ${p.loc||""}</div>`;
+    c.innerHTML=`<div class="bsc-ic">${CE[p.cat]||"📍"}</div><div class="bsc-nm">${esc(p.name)}</div><span class="bsc-tag" style="background:${CC[p.cat]||"#2C6E5A"}">${esc(CN[p.cat]||p.cat)}</span><div class="bsc-d">📍 ${esc(p.loc||"")}</div>`;
     c.onclick=()=>activateBSCard(i); cr.appendChild(c);
     const li = document.createElement("div"); li.className="bsl"+(i===0?" on":""); li.id="bsl-"+i;
-    li.innerHTML=`<div class="bsl-ic">${CE[p.cat]||"📍"}</div><div style="flex:1;min-width:0;"><div class="bsl-nm">${p.name}</div><div class="bsl-row"><span class="bsl-tag" style="background:${CC[p.cat]||"#2C6E5A"}">${CN[p.cat]||p.cat}</span><span class="bsl-dist">📍 ${p.loc||""}</span></div></div>`;
+    li.innerHTML=`<div class="bsl-ic">${CE[p.cat]||"📍"}</div><div style="flex:1;min-width:0;"><div class="bsl-nm">${esc(p.name)}</div><div class="bsl-row"><span class="bsl-tag" style="background:${CC[p.cat]||"#2C6E5A"}">${esc(CN[p.cat]||p.cat)}</span><span class="bsl-dist">📍 ${esc(p.loc||"")}</span></div></div>`;
     li.onclick=()=>activateBSCard(i); lr.appendChild(li);
   });
 }
@@ -2023,7 +2030,7 @@ function renderSaved(cat) {
   }
   el.innerHTML = filtered.map((p, i) => {
     const realIdx = places.indexOf(p);
-    return "<div style=\"display:flex;gap:12px;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid var(--border);cursor:pointer;\" onclick=\"goTo('home')\"><div style=\"width:46px;height:46px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;margin-bottom:3px;\">" + p.name + "</div><div style=\"font-size:11px;color:var(--text2);margin-bottom:6px;\">📍 " + (p.loc||"") + " · " + (p.time||"") + "</div><div style=\"display:flex;gap:6px;\"><span style=\"font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;color:white;background:" + (CC[p.cat]||"#2C6E5A") + "\">" + (CN[p.cat]||p.cat) + "</span></div></div><div style=\"display:flex;flex-direction:column;gap:6px;\"><button onclick=\"event.stopPropagation();editPlace(" + realIdx + ")\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;\">✏️</button><button onclick=\"event.stopPropagation();deletePlace(" + realIdx + ")\" style=\"background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;\">🗑</button></div></div>";
+    return "<div style=\"display:flex;gap:12px;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid var(--border);cursor:pointer;\" onclick=\"goTo('home')\"><div style=\"width:46px;height:46px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;margin-bottom:3px;\">" + esc(p.name) + "</div><div style=\"font-size:11px;color:var(--text2);margin-bottom:6px;\">📍 " + esc(p.loc||"") + " · " + esc(p.time||"") + "</div><div style=\"display:flex;gap:6px;\"><span style=\"font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;color:white;background:" + (CC[p.cat]||"#2C6E5A") + "\">" + esc(CN[p.cat]||p.cat) + "</span></div></div><div style=\"display:flex;flex-direction:column;gap:6px;\"><button onclick=\"event.stopPropagation();editPlace(" + realIdx + ")\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;\">✏️</button><button onclick=\"event.stopPropagation();deletePlace(" + realIdx + ")\" style=\"background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;\">🗑</button></div></div>";
   }).join("");
 }
 
