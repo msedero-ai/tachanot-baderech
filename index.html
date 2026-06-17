@@ -1358,17 +1358,16 @@ body {
           </div>
         </div>
         <div class="card">
-          <div class="card-lbl">סנכרון ענן ☁️</div>
-          <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">התחנות נשמרות אוטומטית בענן. כדי לסנכרן מכשיר נוסף — הזן בו את אותו קוד.</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <span style="font-size:12px;color:var(--text2)">הקוד שלך:</span>
-            <code id="sync-code" style="font-size:16px;font-weight:800;letter-spacing:2px;color:var(--brand)">—</code>
-            <button class="btn-sec" style="padding:4px 10px;font-size:12px;cursor:pointer" onclick="copySyncCode()">📋 העתק</button>
+          <div class="card-lbl">חשבון וסנכרון ☁️</div>
+          <div id="auth-out">
+            <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">התחבר כדי לשמור את התחנות בענן ולסנכרן אוטומטית בין כל המכשירים שלך.</div>
+            <button class="btn-primary" onclick="signIn()">🔑 התחבר עם Google</button>
           </div>
-          <div id="sync-status" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
-          <div style="display:flex;gap:8px">
-            <input id="sync-input" placeholder="הזן קוד לחיבור מכשיר" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:Heebo,sans-serif;font-size:14px;background:var(--surface);color:var(--text)">
-            <button class="btn-primary" style="padding:9px 16px;font-size:13px;white-space:nowrap" onclick="applySyncCode()">חבר</button>
+          <div id="auth-in" style="display:none">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px">מחובר כ:</div>
+            <div id="auth-email" style="font-size:14px;font-weight:700;margin-bottom:8px;word-break:break-all">—</div>
+            <div style="font-size:12px;color:var(--brand);margin-bottom:12px">☁️ התחנות מסונכרנות בענן</div>
+            <button class="btn-sec" style="cursor:pointer" onclick="signOutCloud()">התנתק</button>
           </div>
         </div>
         <div class="card">
@@ -1437,7 +1436,7 @@ let lastResult = null;
 
 const routeCoords = [[32.085,34.782],[32.165,34.820],[32.260,34.860],[32.350,34.875],[32.440,34.895],[32.500,34.893],[32.570,34.920],[32.618,34.948],[32.690,34.970],[32.745,34.990],[32.819,34.989]];
 
-// ── CLOUD SYNC (Firebase Firestore) ──
+// ── CLOUD SYNC (Firebase Firestore + Google sign-in) ──
 const firebaseConfig = {
   apiKey: "AIzaSyDuNzqB6oPWkVUk5COMjl6GB0SA6D_Ot5E",
   authDomain: "tachanot-baderech.firebaseapp.com",
@@ -1446,41 +1445,53 @@ const firebaseConfig = {
   messagingSenderId: "598998008121",
   appId: "1:598998008121:web:25316e97dfd005236268e8"
 };
-let db = null, cloudReady = false, cloudUnsub = null;
+let db = null, cloudReady = false, cloudUnsub = null, currentUser = null;
 
-// Each device has a short sync code (in localStorage). Enter the same code on
-// another device to share the same collection.
-function syncCode() {
-  let c = localStorage.getItem("tachanot_sync");
-  if (!c) { c = Math.random().toString(36).slice(2, 8).toUpperCase(); localStorage.setItem("tachanot_sync", c); }
-  return c;
-}
-
-async function initCloud() {
-  if (typeof firebase === "undefined") { updateSyncUI(); return; }
+function initCloud() {
+  if (typeof firebase === "undefined") { updateAuthUI(); return; }
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
-    await firebase.auth().signInAnonymously();
-    cloudReady = true;
-    updateSyncUI();
-    startCloudWatch();
+    firebase.auth().onAuthStateChanged(user => {
+      currentUser = user || null;
+      if (user) {
+        cloudReady = true;
+        startCloudWatch();
+      } else {
+        cloudReady = false;
+        if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
+      }
+      updateAuthUI();
+    });
   } catch (e) {
     console.warn("Cloud sync unavailable:", e);
-    updateSyncUI();
+    updateAuthUI();
   }
 }
 
+function signIn() {
+  if (typeof firebase === "undefined" || !firebase.auth) return;
+  const provider = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(provider).catch(err => {
+    console.warn("popup sign-in failed, falling back to redirect:", err);
+    firebase.auth().signInWithRedirect(provider);
+  });
+}
+
+function signOutCloud() {
+  if (typeof firebase !== "undefined" && firebase.auth) firebase.auth().signOut();
+}
+
 function startCloudWatch() {
-  if (!db || !cloudReady) return;
+  if (!db || !cloudReady || !currentUser) return;
   if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
-  const code = syncCode();
-  // First time on this code: upload existing local places (merge collections).
-  if (!localStorage.getItem("tachanot_migrated_" + code)) {
+  const uid = currentUser.uid;
+  // First sign-in for this account on this device: upload existing local places.
+  if (!localStorage.getItem("tachanot_migrated_" + uid)) {
     places.forEach(p => cloudPush(p));
-    localStorage.setItem("tachanot_migrated_" + code, "1");
+    localStorage.setItem("tachanot_migrated_" + uid, "1");
   }
-  cloudUnsub = db.collection("places").where("sync", "==", code).onSnapshot(snap => {
+  cloudUnsub = db.collection("places").where("uid", "==", uid).onSnapshot(snap => {
     const arr = [];
     snap.forEach(d => arr.push({ ...d.data(), id: d.id }));
     arr.sort((a, b) => ((b.createdAt && b.createdAt.seconds) || 0) - ((a.createdAt && a.createdAt.seconds) || 0) || (String(b.id) > String(a.id) ? 1 : -1));
@@ -1491,12 +1502,12 @@ function startCloudWatch() {
 }
 
 function cloudPush(p) {
-  if (!db || !cloudReady) return;
+  if (!db || !cloudReady || !currentUser) return;
   db.collection("places").doc(String(p.id)).set({
     name: p.name || "", cat: p.cat || "hike", loc: p.loc || "", desc: p.desc || "",
     lat: (p.lat == null ? null : p.lat), lng: (p.lng == null ? null : p.lng),
     src: p.src || "tt", url: p.url || "", time: p.time || "",
-    sync: syncCode(), createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    uid: currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp()
   }, { merge: true }).catch(e => console.warn("cloud push failed:", e));
 }
 
@@ -1512,26 +1523,18 @@ function rerenderAll() {
   if (curScreen === "profile") { const pc = document.getElementById("prof-count"); if (pc) pc.textContent = places.length; }
 }
 
-function updateSyncUI() {
-  const el = document.getElementById("sync-code"); if (el) el.textContent = syncCode();
-  const st = document.getElementById("sync-status");
-  if (st) st.textContent = cloudReady ? "☁️ מחובר ומסונכרן" : "⚠️ לא מחובר לענן — נשמר מקומית בלבד";
-}
-
-function copySyncCode() {
-  const c = syncCode();
-  if (navigator.clipboard) navigator.clipboard.writeText(c);
-  const st = document.getElementById("sync-status"); if (st) st.textContent = "הקוד הועתק ✓ — הזן אותו במכשיר אחר";
-}
-
-function applySyncCode() {
-  const inp = document.getElementById("sync-input");
-  const v = ((inp && inp.value) || "").trim().toUpperCase();
-  if (!v) return;
-  localStorage.setItem("tachanot_sync", v);
-  if (inp) inp.value = "";
-  updateSyncUI();
-  if (cloudReady) startCloudWatch(); else initCloud();
+function updateAuthUI() {
+  const out = document.getElementById("auth-out");
+  const inn = document.getElementById("auth-in");
+  const em = document.getElementById("auth-email");
+  if (currentUser) {
+    if (out) out.style.display = "none";
+    if (inn) inn.style.display = "block";
+    if (em) em.textContent = currentUser.email || currentUser.displayName || "מחובר";
+  } else {
+    if (out) out.style.display = "block";
+    if (inn) inn.style.display = "none";
+  }
 }
 
 // ── SLIDER ──
@@ -1607,7 +1610,7 @@ function goTo(screen) {
   const navEl = document.getElementById(navMap[screen]);
   if (navEl) navEl.classList.add("active");
   if (screen === "home") setTimeout(() => { if(homeMap) homeMap.invalidateSize(); renderHomeMap(); }, 100);
-  if (screen === "profile") { document.getElementById("prof-count").textContent = places.length; updateSyncUI(); }
+  if (screen === "profile") { document.getElementById("prof-count").textContent = places.length; updateAuthUI(); }
   if (screen === "saved") renderSaved("all");
   if (screen === "trip") resetTripSteps();
 }
