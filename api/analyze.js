@@ -91,6 +91,11 @@ export default async function handler(req, res) {
     res.status(200).json({ ok: true, result });
   } catch (e) {
     console.error("analyze error:", e);
-    res.status(502).json({ ok: false, error: "הניתוח נכשל" });
+    // TEMP DIAGNOSTIC: surface the real error to find the root cause.
+    res.status(502).json({
+      ok: false,
+      error: "הניתוח נכשל",
+      _debug: { message: e?.message, status: e?.status, name: e?.name },
+    });
   }
 }
