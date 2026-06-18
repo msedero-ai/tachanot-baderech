@@ -61,7 +61,7 @@ function decodeEntities(s) {
 async function tiktokOembed(url) {
   if (!/tiktok\.com/i.test(url)) return "";
   try {
-    const r = await fetchWithTimeout("https://www.tiktok.com/oembed?url=" + encodeURIComponent(url), {}, 6000);
+    const r = await fetchWithTimeout("https://www.tiktok.com/oembed?url=" + encodeURIComponent(url), {}, 3500);
     if (!r.ok) return "";
     const j = await r.json();
     const out = [];
@@ -78,7 +78,7 @@ async function ogMeta(url) {
         "User-Agent": "Mozilla/5.0 (compatible; facebookexternalhit/1.1; +http://www.facebook.com/externalhit_uatext.php)",
         "Accept-Language": "he,en;q=0.9",
       },
-    }, 6000);
+    }, 3000);
     if (!r.ok) return "";
     const html = (await r.text()).slice(0, 300000);
     const grab = (prop) => {
@@ -101,10 +101,16 @@ async function ogMeta(url) {
 
 async function fetchPageContext(url) {
   if (!url) return "";
-  const parts = await Promise.all([
-    tiktokOembed(url).catch(() => ""),
-    ogMeta(url).catch(() => ""),
-  ]);
+  const tasks = [];
+  if (/tiktok\.com/i.test(url)) tasks.push(tiktokOembed(url).catch(() => ""));
+  // Skip scraping Instagram/Facebook/TikTok pages directly — they're login-walled
+  // and slow; rely on oEmbed (TikTok) + Gemini's tools. og:meta only helps for
+  // other sites (blogs, Google Maps links, etc.) and is usually fast there.
+  if (!/instagram\.com|instagr\.am|facebook\.com|fb\.com|fb\.watch|fb\.me|tiktok\.com/i.test(url)) {
+    tasks.push(ogMeta(url).catch(() => ""));
+  }
+  if (!tasks.length) return "";
+  const parts = await Promise.all(tasks);
   return parts.filter(Boolean).join("\n");
 }
 
@@ -147,9 +153,11 @@ export default async function handler(req, res) {
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents: [{ role: "user", parts: [{ text: userMessage }] }],
         tools: [{ url_context: {} }, { google_search: {} }],
-        generationConfig: { temperature: 0.2 },
+        // thinkingBudget 0 disables Gemini's "thinking" step — big latency cut,
+        // negligible quality loss for this extraction task.
+        generationConfig: { temperature: 0.2, thinkingConfig: { thinkingBudget: 0 } },
       }),
-    }, 25000);
+    }, 12000);
 
     if (!gemRes.ok) {
       const errText = await gemRes.text();
