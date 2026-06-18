@@ -1,24 +1,39 @@
 // Vercel Serverless Function — proxy to the Google Gemini API.
 // Identifies a place from a social-media link (+ optional pasted text).
-// Uses the URL-context and Google-Search tools so Gemini can actually read the
-// link and look the place up, instead of guessing from the URL alone.
+//
+// To maximize recognition we feed Gemini three sources:
+//   1. Page context we fetch ourselves server-side (TikTok oEmbed caption,
+//      and og:title/og:description meta tags from any link that exposes them).
+//   2. Gemini's url_context tool (the model reads the link itself).
+//   3. Gemini's google_search tool (the model looks the place up).
 //
 // Required env var: GEMINI_API_KEY (from https://aistudio.google.com/apikey)
-// Optional: GEMINI_MODEL (defaults to "gemini-2.5-flash")
+// Optional: GEMINI_MODEL (defaults to "gemini-2.5-flash"; set to
+//           "gemini-2.5-pro" for max accuracy at higher latency)
 
-export const maxDuration = 30; // grounding/url-context can take a few seconds
+export const maxDuration = 30;
 
 const CATEGORIES = ["hike", "coffee", "food", "view", "beach", "art"];
 
-const SYSTEM_PROMPT = `אתה עוזר שמזהה מקומות בישראל מתוך לינקים לרשתות חברתיות (אינסטגרם, טיקטוק, פייסבוק, וואטסאפ) וטקסט חופשי.
+const SYSTEM_PROMPT = `אתה מומחה לזיהוי מקומות בישראל מתוך לינקים לרשתות חברתיות (אינסטגרם, טיקטוק, פייסבוק, וואטסאפ) וטקסט חופשי.
 
-יש לך גישה לשני כלים:
-1. קריאת תוכן מ-URL — נסה תחילה לקרוא את תוכן הדף של הלינק (כיתוב, שם המקום, תיוג מיקום).
-2. חיפוש גוגל — השתמש בו כדי לזהות את המקום המדויק (שם העסק, כתובת, עיר) ולאמת קואורדינטות.
+מקורות המידע שלך:
+- "מידע שחולץ מהדף" (אם צורף) — כיתוב הפוסט/סרטון, כותרת ותיאור הדף. זה המקור האמין ביותר — קרא אותו בעיון, הוא לרוב מכיל את שם המקום או תיוג מיקום.
+- כלי קריאת URL — קרא את תוכן הדף של הלינק.
+- חיפוש גוגל — זהה את המקום המדויק (שם העסק, כתובת מלאה, עיר) ואמת קואורדינטות. השתמש בו תמיד כדי לדייק.
 
-אם הדף חסום או לא נגיש (אינסטגרם/טיקטוק לעיתים חוסמים) — הסק מהכתובת ומהתיאור שהמשתמש כתב, והיעזר בחיפוש גוגל.
+כללי זיהוי:
+- העדף את המקום הספציפי והאמיתי ביותר (שם עסק + רחוב + עיר), לא אזור כללי.
+- אם בכיתוב יש שם עסק (למשל "חומוס סעיד", "קפה לנדוור") — חפש אותו בגוגל וקח את הכתובת והקואורדינטות המדויקות.
+- אם הדף חסום ואין מידע שחולץ — הסק מה-handle שבכתובת ומהתיאור, והיעזר בחיפוש גוגל.
+- אם יש כמה סניפים — בחר את הסביר ביותר לפי ההקשר; אם לא ידוע, ציין בעיר הראשית והורד confidence.
 
-החזר מקום אחד בישראל, כאובייקט JSON תקין **בלבד** — בלי טקסט נוסף, בלי הסברים, בלי סימוני code. המבנה המדויק:
+confidence (היה כן):
+- 90-100: מצאת מקום בעל שם עם כתובת מאומתת.
+- 60-85: זיהוי סביר לפי הקשר חלקי.
+- פחות מ-50: ניחוש בלבד.
+
+החזר מקום אחד בישראל, כאובייקט JSON תקין **בלבד** — בלי טקסט נוסף, בלי הסברים, בלי סימוני code. המבנה:
 {
   "name": "שם המקום בעברית",
   "category": "אחת מ: hike, coffee, food, view, beach, art",
@@ -26,12 +41,72 @@ const SYSTEM_PROMPT = `אתה עוזר שמזהה מקומות בישראל מת
   "description": "תיאור קצר, משפט או שניים",
   "lat": מספר קו רוחב (ישראל ~29.5 עד 33.3),
   "lng": מספר קו אורך (ישראל ~34.2 עד 35.9),
-  "confidence": מספר שלם 0-100 — כמה בטוח זיהוי המיקום הספציפי,
+  "confidence": מספר שלם 0-100,
   "emoji": "אמוג'י אחד שמתאים"
 }
+קטגוריות: hike (טיול/טבע), coffee (בית קפה), food (מסעדה/אוכל), view (תצפית), beach (חוף), art (אמנות/תרבות).`;
 
-קטגוריות: hike (טיול/טבע), coffee (בית קפה), food (מסעדה/אוכל), view (תצפית), beach (חוף), art (אמנות/תרבות).
-ככל שזיהית מקום ספציפי בוודאות גבוהה יותר — confidence גבוה יותר.`;
+function fetchWithTimeout(url, opts, ms) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms || 6000);
+  return fetch(url, { ...(opts || {}), signal: ctrl.signal }).finally(() => clearTimeout(t));
+}
+
+function decodeEntities(s) {
+  return String(s || "")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&#x?2F;/gi, "/");
+}
+
+async function tiktokOembed(url) {
+  if (!/tiktok\.com/i.test(url)) return "";
+  try {
+    const r = await fetchWithTimeout("https://www.tiktok.com/oembed?url=" + encodeURIComponent(url), {}, 6000);
+    if (!r.ok) return "";
+    const j = await r.json();
+    const out = [];
+    if (j.title) out.push("כיתוב הסרטון: " + j.title);
+    if (j.author_name) out.push("יוצר: " + j.author_name);
+    return out.join("\n");
+  } catch (e) { return ""; }
+}
+
+async function ogMeta(url) {
+  try {
+    const r = await fetchWithTimeout(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; facebookexternalhit/1.1; +http://www.facebook.com/externalhit_uatext.php)",
+        "Accept-Language": "he,en;q=0.9",
+      },
+    }, 6000);
+    if (!r.ok) return "";
+    const html = (await r.text()).slice(0, 300000);
+    const grab = (prop) => {
+      const m =
+        html.match(new RegExp('<meta[^>]+(?:property|name)=["\']' + prop + '["\'][^>]+content=["\']([^"\']*)["\']', "i")) ||
+        html.match(new RegExp('<meta[^>]+content=["\']([^"\']*)["\'][^>]+(?:property|name)=["\']' + prop + '["\']', "i"));
+      return m ? decodeEntities(m[1]).trim() : "";
+    };
+    const titleTag = (html.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1];
+    const out = [];
+    const title = grab("og:title") || decodeEntities(titleTag || "").trim();
+    const desc = grab("og:description");
+    const site = grab("og:site_name");
+    if (title) out.push("כותרת הדף: " + title);
+    if (desc) out.push("תיאור הדף: " + desc);
+    if (site) out.push("אתר: " + site);
+    return out.join("\n");
+  } catch (e) { return ""; }
+}
+
+async function fetchPageContext(url) {
+  if (!url) return "";
+  const parts = await Promise.all([
+    tiktokOembed(url).catch(() => ""),
+    ogMeta(url).catch(() => ""),
+  ]);
+  return parts.filter(Boolean).join("\n");
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -52,28 +127,29 @@ export default async function handler(req, res) {
   }
 
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const userMessage =
-    `לינק: ${url || "(לא צורף)"}\n` +
-    `תיאור מהמשתמש: ${extraDesc || "(אין)"}\n\n` +
-    `קרא את הלינק (אם אפשר) וחפש בגוגל כדי לזהות את המקום, והחזר JSON בלבד.`;
 
   try {
+    const pageContext = url ? await fetchPageContext(url) : "";
+
+    const userMessage =
+      `לינק: ${url || "(לא צורף)"}\n` +
+      `תיאור מהמשתמש: ${extraDesc || "(אין)"}\n` +
+      (pageContext ? `\nמידע שחולץ מהדף:\n${pageContext}\n` : "") +
+      `\nזהה את המקום (קרא את הלינק וחפש בגוגל) והחזר JSON בלבד.`;
+
     const endpoint =
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-    const gemRes = await fetch(endpoint, {
+    const gemRes = await fetchWithTimeout(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents: [{ role: "user", parts: [{ text: userMessage }] }],
-        // url_context + google_search let the model actually read the link and
-        // look the place up. These can't be combined with responseMimeType JSON,
-        // so we ask for JSON in the prompt and parse it out of the text below.
         tools: [{ url_context: {} }, { google_search: {} }],
         generationConfig: { temperature: 0.2 },
       }),
-    });
+    }, 25000);
 
     if (!gemRes.ok) {
       const errText = await gemRes.text();
@@ -89,12 +165,9 @@ export default async function handler(req, res) {
       .replace(/```json|```/g, "")
       .trim();
 
-    // The model may wrap the JSON in prose when grounding — extract the object.
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
-    if (start !== -1 && end !== -1 && end > start) {
-      text = text.slice(start, end + 1);
-    }
+    if (start !== -1 && end !== -1 && end > start) text = text.slice(start, end + 1);
 
     if (!text) {
       console.error("Gemini empty response:", JSON.stringify(data).slice(0, 500));
@@ -103,7 +176,6 @@ export default async function handler(req, res) {
     }
 
     const raw = JSON.parse(text);
-
     const lat = Number(raw.lat);
     const lng = Number(raw.lng);
     const conf = Math.max(0, Math.min(100, Math.round(Number(raw.confidence))));

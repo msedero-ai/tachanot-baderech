@@ -1201,7 +1201,7 @@ body {
         <div class="res-card" id="res-card">
           <div class="res-hdr" id="res-hdr" style="background:var(--brand)">
             <div class="res-em" id="res-em">📍</div>
-            <div><div class="res-nm" id="res-nm">שם המקום</div><div class="res-sub">✅ זוהה על ידי AI</div></div>
+            <div><div class="res-nm" id="res-nm">שם המקום</div><div class="res-sub" id="res-sub">✅ זוהה על ידי AI</div></div>
           </div>
           <div class="res-body">
             <div class="conf-row">
@@ -1209,6 +1209,7 @@ body {
               <div class="conf-bar"><div class="conf-fill" id="conf-fill" style="width:0%"></div></div>
               <span class="conf-pct" id="conf-pct">0%</span>
             </div>
+            <div id="ai-notice" style="display:none;background:#FFF3E0;border:1px solid #E8A03A;color:#9A5B0A;border-radius:10px;padding:9px 12px;font-size:12px;line-height:1.5;margin-bottom:10px;"></div>
             <div class="field"><div class="f-lbl">שם</div><input class="f-in" id="f-name" type="text"></div>
             <div class="field">
               <div class="f-lbl">קטגוריה</div>
@@ -1791,6 +1792,20 @@ function showResult(r, url) {
     document.getElementById("conf-pct").textContent = r.confidence + "%";
   }, 100);
   document.getElementById("res-card").classList.add("show");
+
+  // זיהוי לא ודאי → הצג הודעה למשתמש ובקש בדיקה/השלמה ידנית.
+  const sub = document.getElementById("res-sub");
+  const notice = document.getElementById("ai-notice");
+  if (r.confidence < 60) {
+    if (sub) sub.textContent = "⚠️ זיהוי לא ודאי";
+    if (notice) {
+      notice.textContent = "⚠️ הזיהוי אינו ודאי. בדוק/השלם את השם והמיקום, ולחץ 📍 מצא לאימות המיקום לפני השמירה.";
+      notice.style.display = "block";
+    }
+  } else {
+    if (sub) sub.textContent = "✅ זוהה על ידי AI";
+    if (notice) notice.style.display = "none";
+  }
 
   // אם הקואורדינטות לא מדויקות — geocode אוטומטי לפי שם המקום
   const isDefaultCoords = (Math.abs(r.lat - 32.08) < 0.1 && Math.abs(r.lng - 34.78) < 0.1);
