@@ -1400,7 +1400,7 @@ body {
       <div class="ni-ic">👤</div><div class="ni-lb">פרופיל</div>
     </div>
   </div>
-  <div id="toast" style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:600;max-width:80%;text-align:center;"></div>
+  <div id="toast" style="position:absolute;left:50%;bottom:calc(var(--nav-h) + var(--safe-b) + 18px);transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:600;max-width:80%;text-align:center;"></div>
 </div>
 
 <!-- Firebase (compat build — exposes the global `firebase`) -->
@@ -1590,15 +1590,19 @@ function exportPlaces() {
   const fname = "tachanot-baderech-" + new Date().toISOString().slice(0, 10) + ".json";
   const blob = new Blob([data], { type: "application/json" });
 
-  // Mobile: the share sheet is the reliable way to save a file (download often
-  // fails silently in PWAs / iOS). Fall back to a normal download on desktop.
-  try {
-    const file = new File([blob], fname, { type: "application/json" });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: "גיבוי תחנות בדרך" }).catch(() => {});
-      return;
-    }
-  } catch (e) { /* File ctor / canShare unsupported — fall through to download */ }
+  // Mobile only: the share sheet is the reliable way to save a file (download
+  // often fails silently in PWAs / iOS). Desktop always downloads — on desktop
+  // navigator.share is unreliable and would leave the user with nothing.
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  if (isMobile) {
+    try {
+      const file = new File([blob], fname, { type: "application/json" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: "גיבוי תחנות בדרך" }).catch(() => {});
+        return;
+      }
+    } catch (e) { /* fall through to download */ }
+  }
 
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
