@@ -162,7 +162,7 @@ export default async function handler(req, res) {
     if (!gemRes.ok) {
       const errText = await gemRes.text();
       console.error("Gemini HTTP error:", gemRes.status, errText);
-      res.status(502).json({ ok: false, error: "הניתוח נכשל" });
+      res.status(502).json({ ok: false, error: "הניתוח נכשל", _debug: { where: "gemRes", status: gemRes.status, body: String(errText).slice(0, 500) } });
       return;
     }
 
@@ -201,6 +201,6 @@ export default async function handler(req, res) {
     res.status(200).json({ ok: true, result });
   } catch (e) {
     console.error("analyze error:", e);
-    res.status(502).json({ ok: false, error: "הניתוח נכשל" });
+    res.status(502).json({ ok: false, error: "הניתוח נכשל", _debug: { where: "catch", message: String(e && e.message), name: String(e && e.name) } });
   }
 }
