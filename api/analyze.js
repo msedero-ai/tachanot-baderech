@@ -1,19 +1,24 @@
 // Vercel Serverless Function — proxy to the Google Gemini API.
-// Extracts a place's name, category and location from a social-media link
-// plus an optional free-text description the user pasted.
+// Identifies a place from a social-media link (+ optional pasted text).
+// Uses the URL-context and Google-Search tools so Gemini can actually read the
+// link and look the place up, instead of guessing from the URL alone.
 //
-// Required env var (Vercel → Settings → Environment Variables):
-//   GEMINI_API_KEY   — from https://aistudio.google.com/apikey
-// Optional:
-//   GEMINI_MODEL     — defaults to "gemini-2.5-flash"
+// Required env var: GEMINI_API_KEY (from https://aistudio.google.com/apikey)
+// Optional: GEMINI_MODEL (defaults to "gemini-2.5-flash")
+
+export const maxDuration = 30; // grounding/url-context can take a few seconds
 
 const CATEGORIES = ["hike", "coffee", "food", "view", "beach", "art"];
 
 const SYSTEM_PROMPT = `אתה עוזר שמזהה מקומות בישראל מתוך לינקים לרשתות חברתיות (אינסטגרם, טיקטוק, פייסבוק, וואטסאפ) וטקסט חופשי.
 
-המשתמש מדביק לינק ולפעמים גם תיאור. אינך יכול לפתוח את הלינק עצמו — הסק את המקום מתוך הכתובת (handle, מילות מפתח ב-URL) ומתוך התיאור שהמשתמש כתב.
+יש לך גישה לשני כלים:
+1. קריאת תוכן מ-URL — נסה תחילה לקרוא את תוכן הדף של הלינק (כיתוב, שם המקום, תיוג מיקום).
+2. חיפוש גוגל — השתמש בו כדי לזהות את המקום המדויק (שם העסק, כתובת, עיר) ולאמת קואורדינטות.
 
-החזר תמיד מקום אחד בישראל, כאובייקט JSON תקין בלבד (ללא טקסט נוסף, ללא סימוני code), במבנה הזה בדיוק:
+אם הדף חסום או לא נגיש (אינסטגרם/טיקטוק לעיתים חוסמים) — הסק מהכתובת ומהתיאור שהמשתמש כתב, והיעזר בחיפוש גוגל.
+
+החזר מקום אחד בישראל, כאובייקט JSON תקין **בלבד** — בלי טקסט נוסף, בלי הסברים, בלי סימוני code. המבנה המדויק:
 {
   "name": "שם המקום בעברית",
   "category": "אחת מ: hike, coffee, food, view, beach, art",
@@ -26,7 +31,7 @@ const SYSTEM_PROMPT = `אתה עוזר שמזהה מקומות בישראל מת
 }
 
 קטגוריות: hike (טיול/טבע), coffee (בית קפה), food (מסעדה/אוכל), view (תצפית), beach (חוף), art (אמנות/תרבות).
-אם אין מספיק מידע, תן את הניחוש הטוב ביותר עם confidence נמוך.`;
+ככל שזיהית מקום ספציפי בוודאות גבוהה יותר — confidence גבוה יותר.`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -50,7 +55,7 @@ export default async function handler(req, res) {
   const userMessage =
     `לינק: ${url || "(לא צורף)"}\n` +
     `תיאור מהמשתמש: ${extraDesc || "(אין)"}\n\n` +
-    `זהה את המקום והחזר JSON בלבד.`;
+    `קרא את הלינק (אם אפשר) וחפש בגוגל כדי לזהות את המקום, והחזר JSON בלבד.`;
 
   try {
     const endpoint =
@@ -58,17 +63,15 @@ export default async function handler(req, res) {
 
     const gemRes = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents: [{ role: "user", parts: [{ text: userMessage }] }],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
-        },
+        // url_context + google_search let the model actually read the link and
+        // look the place up. These can't be combined with responseMimeType JSON,
+        // so we ask for JSON in the prompt and parse it out of the text below.
+        tools: [{ url_context: {} }, { google_search: {} }],
+        generationConfig: { temperature: 0.2 },
       }),
     });
 
@@ -80,11 +83,18 @@ export default async function handler(req, res) {
     }
 
     const data = await gemRes.json();
-    const text = (data?.candidates?.[0]?.content?.parts || [])
+    let text = (data?.candidates?.[0]?.content?.parts || [])
       .map((p) => p.text || "")
       .join("")
       .replace(/```json|```/g, "")
       .trim();
+
+    // The model may wrap the JSON in prose when grounding — extract the object.
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      text = text.slice(start, end + 1);
+    }
 
     if (!text) {
       console.error("Gemini empty response:", JSON.stringify(data).slice(0, 500));
@@ -94,7 +104,6 @@ export default async function handler(req, res) {
 
     const raw = JSON.parse(text);
 
-    // Normalize so the client always gets a well-formed result.
     const lat = Number(raw.lat);
     const lng = Number(raw.lng);
     const conf = Math.max(0, Math.min(100, Math.round(Number(raw.confidence))));
