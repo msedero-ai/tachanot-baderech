@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>תחנות בדרך</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#2C6E5A">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <style>
 /* required styles */
 
@@ -2190,9 +2194,31 @@ document.getElementById("screens-wrap").addEventListener("wheel", function(e){
 }, {passive:false});
 
 // ── INIT ──
+// Handle a link shared into the app (Android share target / iOS shortcut / ?share=).
+function handleSharedLink() {
+  const p = new URLSearchParams(location.search);
+  const raw = (p.get("url") || p.get("share") || p.get("text") || p.get("title") || "").trim();
+  if (!raw) return;
+  const m = raw.match(/https?:\/\/[^\s]+/);
+  const link = m ? m[0] : raw;
+  goTo("add");
+  setTimeout(() => {
+    const inp = document.getElementById("url-in");
+    if (inp) inp.value = link;
+    const rest = raw.replace(link, "").trim();
+    const d = document.getElementById("url-desc");
+    if (d && rest) d.value = rest;
+    if (typeof analyzeLink === "function") analyzeLink();
+  }, 300);
+  // Clean the URL so a refresh doesn't re-trigger the add flow.
+  history.replaceState(null, "", location.pathname);
+}
+
 loadPlaces();
 setTimeout(() => { initHomeMap(); renderHomeMap(); }, 200);
 initCloud();
+if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/sw.js").catch(() => {}); }
+handleSharedLink();
 
 </script>
 </body>
