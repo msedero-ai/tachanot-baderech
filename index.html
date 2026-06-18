@@ -752,12 +752,13 @@ body {
   -webkit-overflow-scrolling:touch;
   background:var(--bg);
   display:none;
-  padding-top:var(--nav-h);
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:calc(var(--nav-h) + var(--safe-b));
   box-sizing:border-box;
 }
 .screen.active{display:block;}
 .screen::-webkit-scrollbar{display:none;}
-#s-home, #s-trip { overflow:hidden; flex-direction:column; padding-top:0; }
+#s-home, #s-trip { overflow:hidden; flex-direction:column; padding:0; }
 
 /* ── BOTTOM NAV ── */
 .bnav{
@@ -768,7 +769,7 @@ body {
   display:flex; align-items:center;
   z-index:500;
   position:absolute;
-  top:0; left:0; right:0;
+  bottom:0; left:0; right:0;
 }
 .ni{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:6px 0;}
 .ni-ic{font-size:22px;line-height:1;transition:transform .2s;}
@@ -1116,7 +1117,7 @@ body {
   <div class="screens" id="screens-wrap">
 
     <!-- HOME = MAP -->
-    <div class="screen" id="s-home" style="display:flex;flex-direction:column;overflow:hidden;position:absolute;top:var(--nav-h);left:0;right:0;bottom:0;">
+    <div class="screen" id="s-home" style="display:flex;flex-direction:column;overflow:hidden;position:absolute;top:env(safe-area-inset-top,0px);left:0;right:0;bottom:calc(var(--nav-h) + var(--safe-b));">
 
       <!-- TOP BAR -->
       <div style="background:var(--surface);padding:10px 12px 8px;border-bottom:1px solid var(--border);flex-shrink:0;z-index:10;">
@@ -1164,7 +1165,7 @@ body {
         <div class="add-hero">
           <div class="ah-icon">✨</div>
           <div class="ah-title">הוסף תחנה</div>
-          <div class="ah-sub">הדבקי לינק מה-TikTok שראית<br>ה-AI יזהה הכל אוטומטית</div>
+          <div class="ah-sub">הדביקו לינק מאינסטגרם או טיקטוק<br>וה-AI יזהה את המקום אוטומטית</div>
         </div>
         <div class="card">
           <div class="card-lbl">לינק למקום</div>
@@ -1242,7 +1243,7 @@ body {
     </div>
 
     <!-- TRIP -->
-    <div class="screen" id="s-trip" style="display:none;flex-direction:column;overflow:hidden;">
+    <div class="screen" id="s-trip" style="display:none;flex-direction:column;overflow:hidden;position:absolute;top:env(safe-area-inset-top,0px);left:0;right:0;bottom:calc(var(--nav-h) + var(--safe-b));">
       <div class="trip-wrap">
         <div class="steps-bar">
           <div class="steps">
@@ -2223,7 +2224,7 @@ function renderSaved(cat) {
   if (countEl) countEl.textContent = filtered.length;
   if (!el) return;
   if (filtered.length === 0) {
-    el.innerHTML = "<div style=\"text-align:center;padding:48px 24px;color:var(--text2);\"><div style=\"font-size:40px;margin-bottom:12px;\">📍</div><div style=\"font-size:15px;font-weight:700;\">אין תחנות עדיין</div><div style=\"font-size:12px;margin-top:6px;\">לחצי + כדי להוסיף</div></div>";
+    el.innerHTML = "<div style=\"text-align:center;padding:48px 24px;color:var(--text2);\"><div style=\"font-size:40px;margin-bottom:12px;\">📍</div><div style=\"font-size:15px;font-weight:700;\">אין תחנות עדיין</div><div style=\"font-size:12px;margin-top:6px;\">לחצו + כדי להוסיף</div></div>";
     return;
   }
   el.innerHTML = filtered.map((p, i) => {
