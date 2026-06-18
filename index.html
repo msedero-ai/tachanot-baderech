@@ -1718,6 +1718,25 @@ function selSrc(el) {
   el.classList.add("on");
 }
 
+// Auto-detect the source (TikTok/Instagram/Facebook/WhatsApp) from a link.
+function detectSource(u) {
+  u = String(u || "").toLowerCase();
+  if (/tiktok\.com/.test(u)) return "tt";
+  if (/instagram\.com|instagr\.am/.test(u)) return "ig";
+  if (/facebook\.com|fb\.com|fb\.watch|fb\.me/.test(u)) return "fb";
+  if (/wa\.me|whatsapp\.com|chat\.whatsapp/.test(u)) return "wa";
+  return null;
+}
+
+function autoSource(u) {
+  const src = detectSource(u);
+  if (!src) return;
+  document.querySelectorAll("#s-add .chip.tt, #s-add .chip.ig, #s-add .chip.fb, #s-add .chip.wa")
+    .forEach(c => c.classList.remove("on"));
+  const el = document.querySelector("#s-add .chip." + src);
+  if (el) el.classList.add("on");
+}
+
 function selCat(el, cat) {
   document.querySelectorAll("#cat-opts .chip").forEach(c => c.classList.remove("on"));
   el.classList.add("on");
@@ -1727,6 +1746,7 @@ async function analyzeLink() {
   const url = document.getElementById("url-in").value.trim();
   const extraDesc = (document.getElementById("url-desc")?.value || "").trim();
   if (!url) { document.getElementById("url-in").style.outline="2px solid #E85D3A"; setTimeout(()=>document.getElementById("url-in").style.outline="",1500); return; }
+  autoSource(url);
   const btn = document.getElementById("btn-an");
   btn.disabled = true;
   document.getElementById("res-card").classList.remove("show");
@@ -2233,6 +2253,7 @@ loadPlaces();
 setTimeout(() => { initHomeMap(); renderHomeMap(); }, 200);
 initCloud();
 if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/sw.js").catch(() => {}); }
+(function(){ const u = document.getElementById("url-in"); if (u) u.addEventListener("input", e => autoSource(e.target.value)); })();
 handleSharedLink();
 
 </script>
