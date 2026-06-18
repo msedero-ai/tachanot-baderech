@@ -182,7 +182,7 @@ export default async function handler(req, res) {
 
     if (!text) {
       console.error("Gemini empty response:", JSON.stringify(data).slice(0, 500));
-      res.status(502).json({ ok: false, error: "תשובה ריקה מה-AI" });
+      res.status(502).json({ ok: false, error: "לא הצלחתי לזהות מהלינק — הוסף/י תיאור קצר (שם המקום/עיר) ונסה/י שוב" });
       return;
     }
 
