@@ -1358,7 +1358,7 @@ body {
             <button class="btn-primary" onclick="exportPlaces()">📤 ייצוא תחנות (JSON)</button>
             <label class="btn-sec" style="cursor:pointer">
               📥 ייבוא תחנות
-              <input type="file" accept=".json" style="display:none" onchange="importPlaces(this.files[0])">
+              <input type="file" accept=".json,application/json" style="display:none" onchange="importPlaces(this.files[0]); this.value='';">
             </label>
           </div>
         </div>
@@ -1585,25 +1585,48 @@ function toast(msg) {
 }
 
 function exportPlaces() {
-  const blob = new Blob([JSON.stringify(places, null, 2)], {type:"application/json"});
+  if (!places.length) { toast("אין תחנות לייצוא"); return; }
+  const data = JSON.stringify(places, null, 2);
+  const fname = "tachanot-baderech-" + new Date().toISOString().slice(0, 10) + ".json";
+  const blob = new Blob([data], { type: "application/json" });
+
+  // Mobile: the share sheet is the reliable way to save a file (download often
+  // fails silently in PWAs / iOS). Fall back to a normal download on desktop.
+  try {
+    const file = new File([blob], fname, { type: "application/json" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: "גיבוי תחנות בדרך" }).catch(() => {});
+      return;
+    }
+  } catch (e) { /* File ctor / canShare unsupported — fall through to download */ }
+
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "tachanot_backup.json";
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function importPlaces(file) {
+  if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
     try {
       const imported = JSON.parse(e.target.result);
-      if (Array.isArray(imported)) {
-        places = [...imported, ...places.filter(p => !imported.find(i => i.id === p.id))];
-        savePlaces();
-        imported.forEach(p => { if (p && p.id != null) cloudPush(p); });
-        renderHomeMap();
-        toast("יובאו " + imported.length + " תחנות ☁️");
-      }
+      if (!Array.isArray(imported)) { toast("הקובץ אינו בפורמט תקין"); return; }
+      // Keep only objects; ensure each has an id.
+      const clean = imported
+        .filter(p => p && typeof p === "object")
+        .map((p, i) => ({ ...p, id: (p.id != null ? String(p.id) : (Date.now() + i).toString()) }));
+      if (!clean.length) { toast("לא נמצאו תחנות בקובץ"); return; }
+      places = [...clean, ...places.filter(p => !clean.find(i => i.id === p.id))];
+      savePlaces();
+      clean.forEach(p => cloudPush(p));
+      rerenderAll();
+      toast("יובאו " + clean.length + " תחנות" + (cloudReady ? " ☁️" : ""));
     } catch(err) { toast("שגיאה בייבוא הקובץ"); }
   };
   reader.readAsText(file);
