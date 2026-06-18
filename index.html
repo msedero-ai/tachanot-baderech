@@ -1785,8 +1785,9 @@ async function analyzeLink() {
     showResult({name:fallbackName,category:"hike",location:extraDesc||"",description:extraDesc||"",lat:null,lng:null,confidence:0,emoji:"📍"}, url);
     const status = document.getElementById("geo-status");
     if (status) {
+      const reason = (e && e.message && e.message !== "שגיאה") ? e.message : "הניתוח האוטומטי לא זמין";
       status.style.display = "block";
-      status.textContent = "⚠️ הניתוח האוטומטי לא זמין — מלא/י את הפרטים ולחצ/י 📍 מצא לאיתור המיקום";
+      status.textContent = "⚠️ " + reason + " — אפשר למלא ידנית וללחוץ 📍 מצא";
       status.style.color = "var(--accent)";
     }
     return;
