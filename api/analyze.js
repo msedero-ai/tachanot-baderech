@@ -165,7 +165,7 @@ export default async function handler(req, res) {
       const msg = gemRes.status === 429
         ? "המערכת עמוסה כרגע (מכסה חינמית) — נסה/י שוב בעוד כדקה"
         : "הניתוח נכשל";
-      res.status(gemRes.status === 429 ? 429 : 502).json({ ok: false, error: msg });
+      res.status(gemRes.status === 429 ? 429 : 502).json({ ok: false, error: msg, _debug: { where: "gemRes", status: gemRes.status, body: String(errText).slice(0, 600) } });
       return;
     }
 
@@ -182,7 +182,7 @@ export default async function handler(req, res) {
 
     if (!text) {
       console.error("Gemini empty response:", JSON.stringify(data).slice(0, 500));
-      res.status(502).json({ ok: false, error: "לא הצלחתי לזהות מהלינק — הוסף/י תיאור קצר (שם המקום/עיר) ונסה/י שוב" });
+      res.status(502).json({ ok: false, error: "לא הצלחתי לזהות מהלינק — הוסף/י תיאור קצר (שם המקום/עיר) ונסה/י שוב", _debug: { where: "empty", data: JSON.stringify(data).slice(0, 700) } });
       return;
     }
 
@@ -204,6 +204,6 @@ export default async function handler(req, res) {
     res.status(200).json({ ok: true, result });
   } catch (e) {
     console.error("analyze error:", e);
-    res.status(502).json({ ok: false, error: "הניתוח נכשל" });
+    res.status(502).json({ ok: false, error: "הניתוח נכשל", _debug: { where: "catch", message: String(e && e.message), name: String(e && e.name) } });
   }
 }
