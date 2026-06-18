@@ -1116,15 +1116,14 @@ body {
   <div class="screens" id="screens-wrap">
 
     <!-- HOME = MAP -->
-    <div cl    <!-- HOME = MAP -->
     <div class="screen" id="s-home" style="display:flex;flex-direction:column;overflow:hidden;position:absolute;top:var(--nav-h);left:0;right:0;bottom:0;">
 
       <!-- TOP BAR -->
       <div style="background:var(--surface);padding:10px 12px 8px;border-bottom:1px solid var(--border);flex-shrink:0;z-index:10;">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-          <div onclick="goTo('add')" style="flex:1;background:var(--surface2);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:9px;cursor:pointer;border:1px solid var(--border);">
+          <div style="flex:1;background:var(--surface2);border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:9px;border:1px solid var(--border);">
             <span style="font-size:16px;color:var(--text3);">🔍</span>
-            <span style="font-size:14px;color:var(--text2);flex:1;">חפשי מקום או הוסיפי תחנה...</span>
+            <input id="home-search" type="text" oninput="filterHomeText(this.value)" placeholder="חיפוש תחנה לפי שם או עיר..." style="flex:1;min-width:0;border:none;background:none;outline:none;font-family:Heebo,sans-serif;font-size:14px;color:var(--text);">
             <span id="hs-count" style="font-size:12px;font-weight:700;background:var(--brand);color:white;padding:2px 9px;border-radius:20px;">0</span>
           </div>
           <div onclick="toggleTheme()" id="theme-btn" style="width:40px;height:40px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;flex-shrink:0;">🌙</div>
@@ -1153,8 +1152,8 @@ body {
         <div id="map-empty" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:400;text-align:center;">
           <div style="background:var(--surface);border-radius:14px;padding:20px 24px;box-shadow:var(--shadow-md);border:1px solid var(--border);">
             <div style="font-size:32px;margin-bottom:8px;">📍</div>
-            <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;">אין תחנות עדיין</div>
-            <div style="font-size:12px;color:var(--text2);">לחצי ＋ כדי להוסיף את הראשונה</div>
+            <div id="map-empty-t" style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;">אין תחנות עדיין</div>
+            <div id="map-empty-s" style="font-size:12px;color:var(--text2);">לחצו ＋ כדי להוסיף את הראשונה</div>
           </div>
         </div>
       </div>
@@ -1177,10 +1176,10 @@ body {
         </div>
 
         <div class="card" style="border:1.5px solid var(--brand);background:var(--brand-pale);">
-          <div class="card-lbl" style="color:var(--brand);">✨ מה בפוסט? (חשוב לזיהוי)</div>
-          <textarea class="f-in f-ta" id="url-desc" placeholder="העתיקי את הכיתוב מהפוסט — שם המקום, עיר, כל מידע שיש שם..." style="height:90px;background:white;"></textarea>
+          <div class="card-lbl" style="color:var(--brand);">✨ תיאור (לא חובה — עוזר אם לא זוהה)</div>
+          <textarea class="f-in f-ta" id="url-desc" placeholder="שם המקום, עיר, או כל מידע מהפוסט..." style="height:90px;background:white;"></textarea>
           <div style="font-size:11px;color:var(--brand);margin-top:6px;line-height:1.5;">
-            💡 Instagram/TikTok לא חושפים את התוכן — הדביקי את הטקסט מהפוסט כדי שה-AI יזהה נכון
+            💡 לרוב מספיק הלינק. אם המקום לא זוהה — הוסיפו כאן שם מקום או עיר ונסו שוב.
           </div>
         </div>
         <div class="card">
@@ -1400,6 +1399,7 @@ body {
       <div class="ni-ic">👤</div><div class="ni-lb">פרופיל</div>
     </div>
   </div>
+  <div id="toast" style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:600;max-width:80%;text-align:center;"></div>
 </div>
 
 <!-- Firebase (compat build — exposes the global `firebase`) -->
@@ -1432,6 +1432,7 @@ function safeUrl(u){u=String(u==null?"":u);return /^https?:\/\//i.test(u)?u:"#";
 let places = [];
 let curScreen = "home";
 let homeCatFilter = "all";
+let homeTextFilter = "";
 let tripMap = null;
 let tripMarkers = [];
 let homeMap = null;
@@ -1567,6 +1568,21 @@ function savePlaces() {
   localStorage.setItem("tachanot_places", JSON.stringify(places));
 }
 
+// Lightweight transient toast (replaces native alert()).
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById("toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.opacity = "1";
+  el.style.transform = "translateX(-50%) translateY(0)";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.style.opacity = "0";
+    el.style.transform = "translateX(-50%) translateY(20px)";
+  }, 2600);
+}
+
 function exportPlaces() {
   const blob = new Blob([JSON.stringify(places, null, 2)], {type:"application/json"});
   const a = document.createElement("a");
@@ -1585,9 +1601,9 @@ function importPlaces(file) {
         savePlaces();
         imported.forEach(p => { if (p && p.id != null) cloudPush(p); });
         renderHomeMap();
-        alert("יובאו " + imported.length + " תחנות!");
+        toast("יובאו " + imported.length + " תחנות ☁️");
       }
-    } catch(err) { alert("שגיאה בייבוא"); }
+    } catch(err) { toast("שגיאה בייבוא הקובץ"); }
   };
   reader.readAsText(file);
 }
@@ -1641,12 +1657,25 @@ function renderHomeMap() {
   homeMap.invalidateSize();
   homeMarkers.forEach(m => homeMap.removeLayer(m));
   homeMarkers = [];
-  const filtered = homeCatFilter === "all" ? places : places.filter(p => p.cat === homeCatFilter);
+  let filtered = homeCatFilter === "all" ? places : places.filter(p => p.cat === homeCatFilter);
+  const q = (homeTextFilter || "").trim().toLowerCase();
+  if (q) filtered = filtered.filter(p => ((p.name || "") + " " + (p.loc || "")).toLowerCase().includes(q));
   document.getElementById("hs-count").textContent = filtered.length;
   const emptyEl = document.getElementById("map-empty");
   const cardsWrap = document.getElementById("home-cards-wrap");
   if (filtered.length === 0) {
-    if(emptyEl) emptyEl.style.display = "block";
+    if (emptyEl) {
+      emptyEl.style.display = "block";
+      const t = document.getElementById("map-empty-t");
+      const s = document.getElementById("map-empty-s");
+      if (places.length === 0) {
+        if (t) t.textContent = "אין תחנות עדיין";
+        if (s) s.textContent = "לחצו ＋ כדי להוסיף את הראשונה";
+      } else {
+        if (t) t.textContent = "אין תוצאות";
+        if (s) s.textContent = "נסו חיפוש אחר או קטגוריה אחרת";
+      }
+    }
     if(cardsWrap) cardsWrap.style.display = "none";
     return;
   }
@@ -1707,6 +1736,12 @@ function filterHomeCat(el, cat) {
   document.querySelectorAll(".hcat").forEach(c => c.classList.remove("on"));
   el.classList.add("on");
   homeCatFilter = cat;
+  renderHomeMap();
+}
+
+// Live text search on the home map — filters markers + cards by name/location.
+function filterHomeText(v) {
+  homeTextFilter = v || "";
   renderHomeMap();
 }
 
