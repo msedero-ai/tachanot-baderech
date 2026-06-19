@@ -1648,6 +1648,65 @@ function copyAppLink(message) {
   }
 }
 
+// ── SHARE A SINGLE PLACE (link encodes the place; recipient opens & saves) ──
+// UTF-8-safe base64url so Hebrew survives and the value is query-string safe.
+function b64urlEncode(str){ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+function b64urlDecode(str){ str = String(str).replace(/-/g,"+").replace(/_/g,"/"); return decodeURIComponent(escape(atob(str))); }
+
+function sharePlace(id) {
+  const p = places.find(x => String(x.id) === String(id));
+  if (!p) return;
+  const payload = { n: p.name||"", c: p.cat||"hike", l: p.loc||"", d: p.desc||"", a: p.lat, g: p.lng, u: p.url||"", s: p.src||"oth" };
+  const link = location.origin + "/?place=" + b64urlEncode(JSON.stringify(payload));
+  const pitch = "מקום ב\"תחנות בדרך\": " + (p.name||"מקום") + (p.loc ? " · " + p.loc : "");
+  const message = pitch + "\n" + link;
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  if (isMobile && navigator.share) {
+    navigator.share({ title: p.name || "תחנות בדרך", text: pitch, url: link })
+      .catch(err => { if (!err || err.name !== "AbortError") copyAppLink(message); });
+    return;
+  }
+  copyAppLink(message);
+}
+
+// A place shared by a friend (?place=...): pre-fill the add screen as a NEW
+// place (not edit mode) so the recipient just taps save.
+function loadSharedPlace(raw) {
+  if (!raw || typeof raw !== "object") return;
+  const lat = Number(raw.a), lng = Number(raw.g);
+  let url = String(raw.u || "").trim(); if (url && !/^https?:\/\//i.test(url)) url = "";
+  const p = {
+    name: String(raw.n || "").trim().slice(0,200) || "מקום חדש",
+    cat: CC[raw.c] ? raw.c : "hike",
+    loc: String(raw.l || "").trim().slice(0,200),
+    desc: String(raw.d || "").trim().slice(0,1000),
+    lat: Number.isFinite(lat) ? lat : null,
+    lng: Number.isFinite(lng) ? lng : null,
+    url: url.slice(0,2048),
+  };
+  window._editId = undefined; // new place, not an edit
+  goTo("add");
+  setTimeout(() => {
+    document.getElementById("url-in").value = p.url;
+    document.getElementById("f-name").value = p.name;
+    document.getElementById("f-loc").value  = p.loc;
+    document.getElementById("f-desc").value = p.desc;
+    document.querySelectorAll("#cat-opts .chip").forEach(c => c.classList.remove("on"));
+    const ce = document.querySelector("#cat-opts .chip." + p.cat);
+    if (ce) ce.classList.add("on");
+    lastResult = { lat: p.lat, lng: p.lng, url: p.url, emoji: CE[p.cat] || "📍" };
+    document.getElementById("res-hdr").style.background = CC[p.cat] || "#2C6E5A";
+    document.getElementById("res-em").textContent = CE[p.cat] || "📍";
+    document.getElementById("res-nm").textContent = p.name;
+    document.getElementById("conf-fill").style.width = "90%";
+    document.getElementById("conf-pct").textContent = "90%";
+    document.getElementById("res-card").classList.add("show");
+    const saveBtn = document.querySelector("#s-add .res-body .btn-primary");
+    if (saveBtn) saveBtn.textContent = "💾 שמור תחנה";
+    toast("מקום שותף איתך — שמרו אותו אצלכם 📍");
+  }, 120);
+}
+
 // Switch to a different Google account (change email): sign out, then sign in
 // again — the forced account chooser lets the user pick another email.
 function switchAccount() {
@@ -1968,7 +2027,8 @@ function renderHomeMap() {
       <div class="hc-meta">
         <span class="hc-tag" style="background:${CC[p.cat]||"#2C6E5A"}">${esc(CN[p.cat]||p.cat)}</span>
         <span class="hc-src src-${esc(p.src||"oth")}">${esc(SL[p.src]||SL.oth)}</span>
-        <button onclick="event.stopPropagation();editPlace('${idStr(p.id)}')" style="background:none;border:none;color:var(--brand);cursor:pointer;font-size:11px;font-weight:700;padding:2px 6px;margin-right:auto;font-family:Heebo,sans-serif;">✏️ ערוך</button>
+        <button onclick="event.stopPropagation();sharePlace('${idStr(p.id)}')" style="background:none;border:none;color:var(--brand);cursor:pointer;font-size:11px;font-weight:700;padding:2px 6px;margin-right:auto;font-family:Heebo,sans-serif;">📤 שתף</button>
+        <button onclick="event.stopPropagation();editPlace('${idStr(p.id)}')" style="background:none;border:none;color:var(--brand);cursor:pointer;font-size:11px;font-weight:700;padding:2px 6px;font-family:Heebo,sans-serif;">✏️ ערוך</button>
       </div>`;
     c.onclick = () => selectHomeCard(i);
     cardsEl.appendChild(c);
@@ -2649,7 +2709,7 @@ function renderSaved(cat) {
     return;
   }
   el.innerHTML = filtered.map((p, i) => {
-    return "<div style=\"display:flex;gap:12px;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid var(--border);cursor:pointer;\" onclick=\"goTo('home')\"><div style=\"width:46px;height:46px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;margin-bottom:3px;\">" + esc(p.name) + "</div><div style=\"font-size:11px;color:var(--text2);margin-bottom:6px;\">📍 " + esc(p.loc||"") + " · " + esc(p.time||"") + "</div><div style=\"display:flex;gap:6px;\"><span style=\"font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;color:white;background:" + (CC[p.cat]||"#2C6E5A") + "\">" + esc(CN[p.cat]||p.cat) + "</span></div></div><div style=\"display:flex;flex-direction:column;gap:6px;\"><button onclick=\"event.stopPropagation();editPlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;\">✏️</button><button onclick=\"event.stopPropagation();deletePlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;\">🗑</button></div></div>";
+    return "<div style=\"display:flex;gap:12px;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid var(--border);cursor:pointer;\" onclick=\"goTo('home')\"><div style=\"width:46px;height:46px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;margin-bottom:3px;\">" + esc(p.name) + "</div><div style=\"font-size:11px;color:var(--text2);margin-bottom:6px;\">📍 " + esc(p.loc||"") + " · " + esc(p.time||"") + "</div><div style=\"display:flex;gap:6px;\"><span style=\"font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;color:white;background:" + (CC[p.cat]||"#2C6E5A") + "\">" + esc(CN[p.cat]||p.cat) + "</span></div></div><div style=\"display:flex;flex-direction:column;gap:6px;\"><button onclick=\"event.stopPropagation();sharePlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;\">📤</button><button onclick=\"event.stopPropagation();editPlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;\">✏️</button><button onclick=\"event.stopPropagation();deletePlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;\">🗑</button></div></div>";
   }).join("");
 }
 
@@ -2689,6 +2749,15 @@ document.getElementById("screens-wrap").addEventListener("wheel", function(e){
 // Handle a link shared into the app (Android share target / iOS shortcut / ?share=).
 function handleSharedLink() {
   const p = new URLSearchParams(location.search);
+  // A friend shared a specific place (?place=<encoded>).
+  const placeParam = p.get("place");
+  if (placeParam) {
+    let shared = null;
+    try { shared = JSON.parse(b64urlDecode(placeParam)); } catch (e) {}
+    history.replaceState(null, "", location.pathname);
+    if (shared) loadSharedPlace(shared);
+    return;
+  }
   const raw = (p.get("url") || p.get("share") || p.get("text") || p.get("title") || "").trim();
   if (!raw) return;
   const m = raw.match(/https?:\/\/[^\s]+/);
