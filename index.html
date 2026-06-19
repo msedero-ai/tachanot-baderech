@@ -1707,7 +1707,7 @@ function initHomeMap() {
 function renderHomeMap() {
   initHomeMap();
   homeMap.invalidateSize();
-  homeMarkers.forEach(m => homeMap.removeLayer(m));
+  homeMarkers.forEach(m => { if (m) homeMap.removeLayer(m); });
   homeMarkers = [];
   let filtered = homeCatFilter === "all" ? places : places.filter(p => p.cat === homeCatFilter);
   const q = (homeTextFilter || "").trim().toLowerCase();
