@@ -965,6 +965,10 @@ body {
 .chip.on.view  {background:var(--c-view);}
 .chip.on.beach {background:var(--c-beach);}
 .chip.on.art   {background:var(--c-art);}
+.chip.on.tt {background:#111827;}
+.chip.on.ig {background:#C13584;}
+.chip.on.fb {background:#1877F2;}
+.chip.on.wa {background:#1FA855;}
 .chips-wrap{display:flex;flex-wrap:wrap;gap:7px;}
 .chips-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px;scrollbar-width:none;}
 .chips-scroll::-webkit-scrollbar{display:none;}
@@ -1269,7 +1273,7 @@ body {
                 <div class="card-lbl">המסלול</div>
                 <div class="route-inputs">
                   <div class="ri-conn"></div>
-                  <div class="ri-row"><div class="ri-dot f"></div><input class="f-in" id="t-from" value="תל אביב" placeholder="יוצאים מ..."></div>
+                  <div class="ri-row" style="position:relative"><div class="ri-dot f"></div><input class="f-in" id="t-from" value="תל אביב" placeholder="יוצאים מ..." style="padding-left:42px"><button onclick="useMyLocation()" title="המיקום שלי" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;padding:2px;">📍</button></div>
                   <div class="ri-row"><div class="ri-dot t"></div><input class="f-in" id="t-to" value="חיפה" placeholder="הולכים ל..."></div>
                 </div>
               </div>
@@ -1443,6 +1447,7 @@ let homeMap = null;
 let homeMarkers = [];
 let bsExp = false;
 let lastResult = null;
+let myLocation = null;
 
 const routeCoords = [[32.085,34.782],[32.165,34.820],[32.260,34.860],[32.350,34.875],[32.440,34.895],[32.500,34.893],[32.570,34.920],[32.618,34.948],[32.690,34.970],[32.745,34.990],[32.819,34.989]];
 
@@ -2027,6 +2032,19 @@ function resetTripSteps() {
   setStep(1);
   bsExp = false;
   document.getElementById("bs").classList.remove("exp");
+  useMyLocation();
+}
+
+// Default the trip start to the user's current location.
+function useMyLocation() {
+  const inp = document.getElementById("t-from");
+  if (!inp || !navigator.geolocation) return;
+  inp.value = "מאתר מיקום…";
+  navigator.geolocation.getCurrentPosition(
+    pos => { myLocation = [pos.coords.latitude, pos.coords.longitude]; inp.value = "המיקום שלי"; },
+    () => { myLocation = null; if (inp.value === "מאתר מיקום…") inp.value = "תל אביב"; },
+    { timeout: 8000, maximumAge: 60000 }
+  );
 }
 
 function setStep(n) {
@@ -2080,7 +2098,10 @@ async function startTrip() {
     return null;
   }
 
-  const [fromCoords, toCoords] = await Promise.all([geocodeCity(from), geocodeCity(to)]);
+  const [fromCoords, toCoords] = await Promise.all([
+    (from === "המיקום שלי" && myLocation) ? Promise.resolve(myLocation) : geocodeCity(from),
+    geocodeCity(to)
+  ]);
   const fromLL = fromCoords || [32.085, 34.782];
   const toLL   = toCoords   || [32.819, 34.989];
   const dist = Math.round(Math.sqrt(Math.pow((fromLL[0]-toLL[0])*111,2) + Math.pow((fromLL[1]-toLL[1])*85,2)));
