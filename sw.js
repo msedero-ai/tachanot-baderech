@@ -1,6 +1,6 @@
 // Service worker — PWA installability, Web Share Target, and offline app shell.
 // Bump CACHE when index.html or assets change so old caches are evicted.
-const CACHE = "tachanot-v2";
+const CACHE = "tachanot-v3";
 
 // Same-origin app shell precached on install. index.html embeds all app code
 // (including Leaflet), so caching it makes the whole UI work offline; saved
