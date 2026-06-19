@@ -1247,6 +1247,7 @@ body {
               <span class="conf-pct" id="conf-pct">0%</span>
             </div>
             <div id="ai-notice" style="display:none;background:#FFF3E0;border:1px solid #E8A03A;color:#9A5B0A;border-radius:10px;padding:9px 12px;font-size:12px;line-height:1.5;margin-bottom:10px;"></div>
+            <div id="sync-hint" style="display:none;background:var(--brand-pale);border:1px solid var(--brand);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.5;margin-bottom:10px;color:var(--brand);">💡 כדי לשמור את המקום בענן ולסנכרן בין כל המכשירים שלך:<br><button onclick="signIn()" style="background:var(--brand);color:#fff;border:none;border-radius:8px;padding:5px 11px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;margin-top:7px;">🔑 התחבר עם Google</button></div>
             <div class="field"><div class="f-lbl">שם</div><input class="f-in" id="f-name" type="text"></div>
             <div class="field">
               <div class="f-lbl">קטגוריה</div>
@@ -1739,6 +1740,8 @@ function loadSharedPlace(raw) {
     document.getElementById("res-nm").textContent = p.name;
     document.getElementById("conf-fill").style.width = "90%";
     document.getElementById("conf-pct").textContent = "90%";
+    const sh = document.getElementById("sync-hint");
+    if (sh) sh.style.display = (!dup && !currentUser) ? "block" : "none";
     document.getElementById("res-card").classList.add("show");
     const saveBtn = document.querySelector("#s-add .res-body .btn-primary");
     window._editId = dup ? dup.id : undefined;
@@ -1824,6 +1827,7 @@ function updateAuthUI() {
     if (out) out.style.display = "none";
     if (inn) inn.style.display = "block";
     if (em) em.textContent = currentUser.email || currentUser.displayName || "מחובר";
+    const sh = document.getElementById("sync-hint"); if (sh) sh.style.display = "none";
   } else {
     if (out) out.style.display = "block";
     if (inn) inn.style.display = "none";
@@ -2201,6 +2205,7 @@ function showResult(r, url) {
     document.getElementById("conf-fill").style.width = r.confidence + "%";
     document.getElementById("conf-pct").textContent = r.confidence + "%";
   }, 100);
+  { const sh = document.getElementById("sync-hint"); if (sh) sh.style.display = "none"; }
   document.getElementById("res-card").classList.add("show");
 
   // זיהוי לא ודאי → הצג הודעה למשתמש ובקש בדיקה/השלמה ידנית.
@@ -2258,6 +2263,7 @@ function editPlace(id) {
     document.getElementById("res-nm").textContent = p.name;
     document.getElementById("conf-fill").style.width = "90%";
     document.getElementById("conf-pct").textContent = "90%";
+    const sh = document.getElementById("sync-hint"); if (sh) sh.style.display = "none";
     document.getElementById("res-card").classList.add("show");
     // Mark edit mode: savePlace() reads window._editId to replace the old place.
     const saveBtn = document.querySelector("#s-add .res-body .btn-primary");
