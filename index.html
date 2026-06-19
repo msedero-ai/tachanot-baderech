@@ -1599,6 +1599,7 @@ function exportPlaces() {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1500);
+    toast("הקובץ נשמר בהורדות 📁");
   }
 
   // Mobile: try the share sheet (download often fails silently in PWAs/iOS).
@@ -1610,6 +1611,7 @@ function exportPlaces() {
 
   if (isMobile && file && navigator.canShare && navigator.canShare({ files: [file] })) {
     navigator.share({ files: [file], title: "גיבוי תחנות בדרך", text: "גיבוי תחנות בדרך" })
+      .then(() => toast("הקובץ שותף ✓"))
       .catch(err => { if (!err || err.name !== "AbortError") download(); });
     return;
   }
