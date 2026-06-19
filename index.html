@@ -760,7 +760,10 @@ body {
   box-sizing:border-box;
 }
 .screen.active{display:block;}
-.screen::-webkit-scrollbar{display:none;}
+/* Hide vertical scrollbars on the scrolling screens/overlays — the mouse wheel
+   (and touch) handle vertical scroll; only the horizontal strips show a bar. */
+.screen, .t-step, #saved-list, #help-overlay{scrollbar-width:none;}
+.screen::-webkit-scrollbar, #saved-list::-webkit-scrollbar, #help-overlay::-webkit-scrollbar{display:none;}
 #s-home, #s-trip { overflow:hidden; flex-direction:column; padding:0; }
 
 /* ── BOTTOM NAV ── */
