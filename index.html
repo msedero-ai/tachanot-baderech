@@ -1302,6 +1302,7 @@ body {
             </div>
           </div>
           <div class="t-step map-step" id="tp2">
+            <button onclick="endTrip()" style="position:absolute;top:12px;right:12px;z-index:500;background:var(--accent);color:#fff;border:none;border-radius:22px;padding:9px 16px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:var(--shadow-md);">✕ סיים טיול</button>
             <div id="trip-map"></div>
             <div class="bs" id="bs">
               <div class="bs-handle-row" onclick="toggleBS()"><div class="bs-handle"></div></div>
@@ -2032,12 +2033,33 @@ function savePlace() {
 
 // ── TRIP ──
 function resetTripSteps() {
+  // If a trip is active (saved), restore it — go straight to the map — even
+  // after navigating away or relaunching the app.
+  const saved = localStorage.getItem("tachanot_trip");
+  if (saved) {
+    try {
+      const t = JSON.parse(saved);
+      document.getElementById("t-from").value = t.from || "";
+      document.getElementById("t-to").value = t.to || "";
+      if (t.radius) { document.getElementById("rslider").value = t.radius; updateSlider(t.radius); }
+      startTrip();
+      return;
+    } catch (e) {}
+  }
+  // Fresh trip: step 1.
   document.querySelectorAll(".t-step").forEach(s => s.classList.remove("active"));
   document.getElementById("tp1").classList.add("active");
   setStep(1);
   bsExp = false;
   document.getElementById("bs").classList.remove("exp");
   useMyLocation();
+}
+
+// End the active trip: clear saved state, stop tracking, back to step 1.
+function endTrip() {
+  localStorage.removeItem("tachanot_trip");
+  stopLiveLocation();
+  resetTripSteps();
 }
 
 // Default the trip start to the user's current location, labelled with the town.
@@ -2076,6 +2098,9 @@ function setStep(n) {
 async function startTrip() {
   const from = document.getElementById("t-from").value || "תל אביב";
   const to   = document.getElementById("t-to").value   || "חיפה";
+  // Persist the active trip so it survives navigation / app relaunch.
+  const radius = parseInt(document.getElementById("rslider").value) || 15;
+  localStorage.setItem("tachanot_trip", JSON.stringify({ from, to, radius }));
   document.getElementById("tp1").classList.remove("active");
   document.getElementById("tp2").classList.add("active");
   setStep(2);
@@ -2085,6 +2110,7 @@ async function startTrip() {
 
   // Geocode cities dynamically
   async function geocodeCity(name) {
+    name = String(name || "").replace(/^📍\s*/, "").trim();
     // Try multiple queries to improve success rate
     var queries = [
       name + " ישראל",
