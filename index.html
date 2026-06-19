@@ -1669,8 +1669,23 @@ function sharePlace(id) {
   copyAppLink(message);
 }
 
-// A place shared by a friend (?place=...): pre-fill the add screen as a NEW
-// place (not edit mode) so the recipient just taps save.
+// Does this place already exist locally? Match by original link, or by name +
+// (matching town or near-identical coordinates) — avoids saving a duplicate.
+function findDuplicate(p) {
+  const name = (p.name || "").trim().toLowerCase();
+  return places.find(x => {
+    if (p.url && x.url && x.url === p.url) return true;
+    if (!name || (x.name || "").trim().toLowerCase() !== name) return false;
+    if (p.loc && x.loc && x.loc.trim() === p.loc.trim()) return true;
+    if (p.lat != null && p.lng != null && x.lat != null && x.lng != null) {
+      return (Math.abs(x.lat - p.lat) + Math.abs(x.lng - p.lng)) < 0.005; // ~0.5 km
+    }
+    return !p.loc && p.lat == null; // same name and nothing else to disambiguate
+  }) || null;
+}
+
+// A place shared by a friend (?place=...): pre-fill the add screen so the
+// recipient just taps save. If it already exists, offer to update instead.
 function loadSharedPlace(raw) {
   if (!raw || typeof raw !== "object") return;
   const lat = Number(raw.a), lng = Number(raw.g);
@@ -1684,7 +1699,13 @@ function loadSharedPlace(raw) {
     lng: Number.isFinite(lng) ? lng : null,
     url: url.slice(0,2048),
   };
-  window._editId = undefined; // new place, not an edit
+  const dup = findDuplicate(p);
+  if (dup) {
+    if (!confirm("המקום \"" + p.name + "\" כבר קיים אצלך. לעדכן את הפרטים?")) {
+      toast("המקום כבר קיים אצלך ✓");
+      return;
+    }
+  }
   goTo("add");
   setTimeout(() => {
     document.getElementById("url-in").value = p.url;
@@ -1702,8 +1723,9 @@ function loadSharedPlace(raw) {
     document.getElementById("conf-pct").textContent = "90%";
     document.getElementById("res-card").classList.add("show");
     const saveBtn = document.querySelector("#s-add .res-body .btn-primary");
-    if (saveBtn) saveBtn.textContent = "💾 שמור תחנה";
-    toast("מקום שותף איתך — שמרו אותו אצלכם 📍");
+    window._editId = dup ? dup.id : undefined;
+    if (saveBtn) saveBtn.textContent = dup ? "💾 עדכן תחנה" : "💾 שמור תחנה";
+    toast(dup ? "עדכון מקום קיים — שמרו לאישור 📍" : "מקום שותף איתך — שמרו אותו אצלכם 📍");
   }, 120);
 }
 
