@@ -1094,6 +1094,10 @@ body {
 .ps{background:rgba(255,255,255,.15);border-radius:11px;padding:10px 18px;text-align:center;}
 .ps-v{font-size:20px;font-weight:900;}
 .ps-l{font-size:10px;opacity:.8;}
+.help-step{display:flex;gap:13px;align-items:flex-start;margin-bottom:18px;}
+.help-em{font-size:24px;flex-shrink:0;width:44px;height:44px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;}
+.help-t{font-size:15px;font-weight:800;color:var(--text);margin-bottom:3px;}
+.help-d{font-size:13px;color:var(--text2);line-height:1.65;}
 .theme-toggle{width:44px;height:24px;background:var(--border);border-radius:12px;position:relative;cursor:pointer;transition:background .3s;flex-shrink:0;}
 [data-theme="dark"] .theme-toggle{background:var(--brand);}
 .theme-toggle::after{content:'';position:absolute;top:2px;right:2px;width:20px;height:20px;background:white;border-radius:50%;transition:transform .3s;box-shadow:0 1px 4px rgba(0,0,0,.2);}
@@ -1398,7 +1402,8 @@ body {
         </div>
         <div class="card">
           <div class="card-lbl">אודות</div>
-          <div style="font-size:13px;color:var(--text2);line-height:1.7">תחנות בדרך עוזרת לשמור מקומות שמוצאים ברשתות ולמצוא אותם בדרך. התחנות נשמרות בענן ומסונכרנות בין המכשירים שלך עם קוד הסנכרון.</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">תחנות בדרך עוזרת לשמור מקומות שמוצאים ברשתות ולמצוא אותם בדרך. התחנות נשמרות בענן ומסונכרנות בין המכשירים שלך.</div>
+          <button class="btn-sec" style="cursor:pointer" onclick="openHelp()">❓ איך זה עובד</button>
         </div>
       </div>
     </div>
@@ -1422,6 +1427,31 @@ body {
     </div>
   </div>
   <div id="toast" style="position:absolute;left:50%;bottom:calc(var(--nav-h) + var(--safe-b) + 18px);transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:600;max-width:80%;text-align:center;"></div>
+
+  <!-- HELP / HOW-IT-WORKS OVERLAY -->
+  <div id="help-overlay" style="display:none;position:absolute;inset:0;z-index:1200;background:var(--bg);overflow-y:auto;">
+    <div style="position:sticky;top:0;background:linear-gradient(145deg,var(--brand-l),var(--brand));color:white;padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow-md);">
+      <div style="font-size:18px;font-weight:800;">איך זה עובד? 🚗</div>
+      <button onclick="closeHelp()" style="background:rgba(255,255,255,.2);border:none;color:white;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;line-height:1;">✕</button>
+    </div>
+    <div style="padding:18px 18px 32px;max-width:560px;margin:0 auto;">
+      <div style="font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:18px;">ראיתם מקום מגניב ברשתות? תחנות בדרך זוכרת אותו בשבילכם — ומזכירה לכם כשאתם נוסעים בקרבת מקום.</div>
+
+      <div class="help-step"><div class="help-em">📍</div><div><div class="help-t">שמירת מקום</div><div class="help-d">ראיתם קפה/טיול/מסעדה בטיקטוק או אינסטגרם? העתיקו את הלינק, הדביקו במסך <b>הוסף תחנה</b> (כפתור ＋), וה-AI יזהה את המקום וישמור אותו על המפה — אפשר גם להוסיף תיאור אם המקום לא זוהה.</div></div></div>
+
+      <div class="help-step"><div class="help-em">📲</div><div><div class="help-t">שיתוף ישיר מהרשתות</div><div class="help-d">באנדרואיד: לחצו <b>שיתוף</b> על פוסט ובחרו "תחנות בדרך" — והוא ייפתח עם הלינק מוכן. באייפון: דרך קיצור (Shortcut) ייעודי.</div></div></div>
+
+      <div class="help-step"><div class="help-em">🗺️</div><div><div class="help-t">מצא תחנות בדרך</div><div class="help-d">במסך <b>טיול</b> בחרו מאיפה לאן, וראו אילו מהמקומות ששמרתם נמצאים על המסלול — בלי להתחיל טיול, רק להציץ.</div></div></div>
+
+      <div class="help-step"><div class="help-em">🚙</div><div><div class="help-t">מצב טיול</div><div class="help-d">לחצו <b>התחל טיול</b> כדי לעקוב בזמן אמת: המיקום שלכם על המפה והתחנות בדרך. הטיול נשמר גם אם יצאתם מהאפליקציה — לחצו <b>סיים טיול</b> כשסיימתם.</div></div></div>
+
+      <div class="help-step"><div class="help-em">☁️</div><div><div class="help-t">סנכרון בענן</div><div class="help-d">התחברו עם Google במסך <b>פרופיל</b> כדי לשמור את התחנות בענן ולסנכרן אוטומטית בין כל המכשירים שלכם.</div></div></div>
+
+      <div class="help-step"><div class="help-em">📱</div><div><div class="help-t">התקנה למסך הבית</div><div class="help-d">הוסיפו את האפליקציה למסך הבית (בתפריט הדפדפן → "הוסף למסך הבית") כדי שתיפתח כמו אפליקציה רגילה, גם בלי אינטרנט.</div></div></div>
+
+      <button class="btn-primary" style="margin-top:8px;" onclick="closeHelp()">הבנתי, יאללה 🚀</button>
+    </div>
+  </div>
 </div>
 
 <!-- Firebase (compat build — exposes the global `firebase`) -->
@@ -1477,7 +1507,7 @@ const routeCoords = [[32.085,34.782],[32.165,34.820],[32.260,34.860],[32.350,34.
 // ── CLOUD SYNC (Firebase Firestore + Google sign-in) ──
 const firebaseConfig = {
   apiKey: "AIzaSyDuNzqB6oPWkVUk5COMjl6GB0SA6D_Ot5E",
-  authDomain: "tachanot-baderech.firebaseapp.com",
+  authDomain: "tachanot-baderech.vercel.app",
   projectId: "tachanot-baderech",
   storageBucket: "tachanot-baderech.firebasestorage.app",
   messagingSenderId: "598998008121",
@@ -1542,6 +1572,15 @@ function signOutCloud() {
 
 // Share the app itself (word-of-mouth). Mobile -> native share sheet;
 // desktop / share-unavailable -> copy the link to the clipboard.
+function openHelp() {
+  const o = document.getElementById("help-overlay");
+  if (o) { o.style.display = "block"; o.scrollTop = 0; }
+}
+function closeHelp() {
+  const o = document.getElementById("help-overlay");
+  if (o) o.style.display = "none";
+}
+
 function shareApp() {
   const url = location.origin + "/";
   const pitch = "תחנות בדרך — שומרים מקומות מטיקטוק ואינסטגרם ומוצאים אותם בדרך לנסיעה 🚗";
