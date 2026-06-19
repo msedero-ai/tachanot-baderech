@@ -1448,6 +1448,9 @@ let homeMarkers = [];
 let bsExp = false;
 let lastResult = null;
 let myLocation = null;
+let myLocLabel = "";
+let tripGeoWatch = null;
+let meMarker = null;
 
 const routeCoords = [[32.085,34.782],[32.165,34.820],[32.260,34.860],[32.350,34.875],[32.440,34.895],[32.500,34.893],[32.570,34.920],[32.618,34.948],[32.690,34.970],[32.745,34.990],[32.819,34.989]];
 
@@ -1658,6 +1661,8 @@ function goTo(screen) {
     const cancelBtn = document.querySelector("#s-add .res-body .btn-primary");
     if (cancelBtn) cancelBtn.textContent = "💾 שמור תחנה";
   }
+  // Stop live-location tracking when leaving the trip screen (saves battery).
+  if (curScreen === "trip" && screen !== "trip") stopLiveLocation();
   const prevEl = document.getElementById("s-" + curScreen);
   prevEl.style.display = "none";
   prevEl.classList.remove("active");
@@ -2035,13 +2040,24 @@ function resetTripSteps() {
   useMyLocation();
 }
 
-// Default the trip start to the user's current location.
+// Default the trip start to the user's current location, labelled with the town.
 function useMyLocation() {
   const inp = document.getElementById("t-from");
   if (!inp || !navigator.geolocation) return;
   inp.value = "מאתר מיקום…";
   navigator.geolocation.getCurrentPosition(
-    pos => { myLocation = [pos.coords.latitude, pos.coords.longitude]; inp.value = "המיקום שלי"; },
+    async pos => {
+      myLocation = [pos.coords.latitude, pos.coords.longitude];
+      let town = "";
+      try {
+        const r = await fetch("https://nominatim.openstreetmap.org/reverse?lat=" + myLocation[0] + "&lon=" + myLocation[1] + "&format=json&accept-language=he&zoom=14");
+        const d = await r.json();
+        const a = (d && d.address) || {};
+        town = a.city || a.town || a.village || a.municipality || a.suburb || a.county || "";
+      } catch (e) {}
+      myLocLabel = town ? ("📍 " + town) : "📍 המיקום שלי";
+      if (inp.value === "מאתר מיקום…") inp.value = myLocLabel;
+    },
     () => { myLocation = null; if (inp.value === "מאתר מיקום…") inp.value = "תל אביב"; },
     { timeout: 8000, maximumAge: 60000 }
   );
@@ -2099,7 +2115,7 @@ async function startTrip() {
   }
 
   const [fromCoords, toCoords] = await Promise.all([
-    (from === "המיקום שלי" && myLocation) ? Promise.resolve(myLocation) : geocodeCity(from),
+    (myLocation && from === myLocLabel) ? Promise.resolve(myLocation) : geocodeCity(from),
     geocodeCity(to)
   ]);
   const fromLL = fromCoords || [32.085, 34.782];
@@ -2222,6 +2238,33 @@ async function startTrip() {
     tripMarkers.push(m);
   });
   setTimeout(function() { if(tripMarkers[0]) tripMarkers[0].openPopup(); }, 800);
+
+  startLiveLocation();
+}
+
+// Live "you are here" marker on the trip map, updating during the drive.
+function startLiveLocation() {
+  if (!tripMap || !navigator.geolocation) return;
+  stopLiveLocation();
+  const meIcon = L.divIcon({
+    html: '<div style="width:18px;height:18px;border-radius:50%;background:#1A73E8;border:3px solid #fff;box-shadow:0 0 0 5px rgba(26,115,232,.25),0 1px 5px rgba(0,0,0,.35);"></div>',
+    iconSize:[18,18], iconAnchor:[9,9], className:""
+  });
+  tripGeoWatch = navigator.geolocation.watchPosition(function(pos) {
+    const ll = [pos.coords.latitude, pos.coords.longitude];
+    myLocation = ll;
+    if (!meMarker) {
+      meMarker = L.marker(ll, { icon: meIcon, zIndexOffset: 1000 }).addTo(tripMap).bindTooltip("המיקום שלי");
+    } else {
+      meMarker.setLatLng(ll);
+    }
+  }, function() {}, { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 });
+}
+
+function stopLiveLocation() {
+  if (tripGeoWatch != null && navigator.geolocation) { navigator.geolocation.clearWatch(tripGeoWatch); tripGeoWatch = null; }
+  if (meMarker && tripMap) { tripMap.removeLayer(meMarker); }
+  meMarker = null;
 }
 
 function buildBSFiltered(arr) {
