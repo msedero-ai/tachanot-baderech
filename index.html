@@ -957,6 +957,8 @@ body {
 .f-in:focus{background:var(--surface);border-color:var(--brand);box-shadow:0 0 0 3px rgba(44,110,90,.1);}
 .f-in::placeholder{color:var(--text3);}
 .f-ta{resize:none;height:70px;}
+#rslider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;border-radius:50%;background:var(--brand);border:3px solid var(--surface);box-shadow:0 1px 5px rgba(0,0,0,.3);cursor:pointer;margin-top:-10px;}
+#rslider::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--brand);border:3px solid var(--surface);box-shadow:0 1px 5px rgba(0,0,0,.3);cursor:pointer;}
 .chip{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--surface2);color:var(--text2);transition:all .15s;user-select:none;white-space:nowrap;}
 .chip.on{color:white;border-color:transparent;}
 .chip.on.hike  {background:var(--c-hike);}
@@ -1186,7 +1188,7 @@ body {
 
         <div class="card" style="border:1.5px solid var(--brand);background:var(--brand-pale);">
           <div class="card-lbl" style="color:var(--brand);">✨ תיאור (לא חובה — עוזר אם לא זוהה)</div>
-          <textarea class="f-in f-ta" id="url-desc" placeholder="שם המקום, עיר, או כל מידע מהפוסט..." style="height:90px;background:white;"></textarea>
+          <textarea class="f-in f-ta" id="url-desc" placeholder="שם המקום, עיר, או כל מידע מהפוסט..." style="height:90px;background:var(--surface);"></textarea>
           <div style="font-size:11px;color:var(--brand);margin-top:6px;line-height:1.5;">
             💡 לרוב מספיק הלינק. אם המקום לא זוהה — הוסיפו כאן שם מקום או עיר ונסו שוב.
           </div>
@@ -1733,7 +1735,7 @@ function renderHomeMap() {
   if(cardsWrap) cardsWrap.style.display = "block";
   const bounds = [];
   filtered.forEach((p, i) => {
-    if (!p.lat || !p.lng) return;
+    if (!p.lat || !p.lng) { homeMarkers.push(null); return; }
     const m = L.marker([p.lat, p.lng], {
       icon: L.divIcon({
         html: `<div style="width:38px;height:38px;border-radius:50%;background:${CC[p.cat]||"#2C6E5A"};border:3px solid white;box-shadow:0 3px 10px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;font-size:17px;">${CE[p.cat]||"📍"}</div>`,
@@ -1763,7 +1765,7 @@ function renderHomeMap() {
         <button onclick="event.stopPropagation();deletePlace(${realIdx})" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:2px 4px;flex-shrink:0;line-height:1;">🗑</button>
       </div>
       <div class="hc-meta">
-        <span class="hc-tag" style="background:${CC[p.cat]||"#2C6E5A"}">${CN[p.cat]||p.cat}</span>
+        <span class="hc-tag" style="background:${CC[p.cat]||"#2C6E5A"}">${esc(CN[p.cat]||p.cat)}</span>
         <span class="hc-src src-${esc(p.src||"oth")}">${esc(SL[p.src]||p.src)}</span>
         <button onclick="event.stopPropagation();editPlace(${realIdx})" style="background:none;border:none;color:var(--brand);cursor:pointer;font-size:11px;font-weight:700;padding:2px 6px;margin-right:auto;font-family:Heebo,sans-serif;">✏️ ערוך</button>
       </div>`;
@@ -2383,7 +2385,7 @@ function activateBSCard(i) {
   document.querySelectorAll(".bsc").forEach((c,j)=>c.classList.toggle("on",j===i));
   document.querySelectorAll(".bsl").forEach((c,j)=>c.classList.toggle("on",j===i));
   const bsc = document.getElementById("bsc-"+i); if(bsc) bsc.scrollIntoView({behavior:"smooth",block:"nearest",inline:"center"});
-  if (tripMap && tripMarkers[i]) { tripMap.flyTo([places[i].lat||32.08,places[i].lng||34.78],14,{duration:.7}); setTimeout(()=>tripMarkers[i].openPopup(),750); }
+  if (tripMap && tripMarkers[i]) { tripMap.flyTo(tripMarkers[i].getLatLng(),14,{duration:.7}); setTimeout(()=>tripMarkers[i].openPopup(),750); }
 }
 
 function toggleBS() {

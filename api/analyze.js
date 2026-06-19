@@ -52,6 +52,30 @@ function fetchWithTimeout(url, opts, ms) {
   return fetch(url, { ...(opts || {}), signal: ctrl.signal }).finally(() => clearTimeout(t));
 }
 
+// SSRF guard: only allow fetching public http(s) hosts (block localhost,
+// private/loopback/link-local IPs, and cloud metadata endpoints).
+function isPublicHttpUrl(u) {
+  let host;
+  try {
+    const x = new URL(String(u));
+    if (x.protocol !== "http:" && x.protocol !== "https:") return false;
+    host = x.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  } catch (e) { return false; }
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") ||
+      host.endsWith(".internal") || host === "metadata.google.internal") return false;
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const a = +v4[1], b = +v4[2];
+    if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+  }
+  if (host === "::1" || host.startsWith("fc") || host.startsWith("fd") ||
+      host.startsWith("fe80") || host.startsWith("::")) return false;
+  return true;
+}
+
 function decodeEntities(s) {
   return String(s || "")
     .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
@@ -72,6 +96,7 @@ async function tiktokOembed(url) {
 }
 
 async function ogMeta(url) {
+  if (!isPublicHttpUrl(url)) return "";
   try {
     const r = await fetchWithTimeout(url, {
       headers: {
@@ -155,29 +180,40 @@ export default async function handler(req, res) {
       generationConfig: { temperature: 0.2, thinkingConfig: { thinkingBudget: 0 } },
     });
 
-    // Retry transient server overloads (503/500/502) — common on the free tier.
-    let gemRes, errText = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
-      gemRes = await fetchWithTimeout(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: reqBody,
-      }, 12000);
+    // Retry transient failures (503/500/502 AND timeouts/network errors).
+    // Kept within maxDuration: 2 attempts × 9s + short backoff + page fetch < 30s.
+    const ATTEMPTS = 2, PER_TRY_MS = 9000;
+    let gemRes = null, errText = "";
+    for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+      try {
+        gemRes = await fetchWithTimeout(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          body: reqBody,
+        }, PER_TRY_MS);
+      } catch (e) {
+        // Abort (timeout) or network error — treat as a transient failure.
+        gemRes = null;
+        if (attempt < ATTEMPTS - 1) { await new Promise((r) => setTimeout(r, 600 * (attempt + 1))); continue; }
+        break;
+      }
       if (gemRes.ok) break;
       errText = await gemRes.text();
       const transient = gemRes.status === 503 || gemRes.status === 500 || gemRes.status === 502;
-      if (transient && attempt < 2) { await new Promise((r) => setTimeout(r, 900 * (attempt + 1))); continue; }
+      if (transient && attempt < ATTEMPTS - 1) { await new Promise((r) => setTimeout(r, 600 * (attempt + 1))); continue; }
       break;
     }
 
-    if (!gemRes.ok) {
-      console.error("Gemini HTTP error:", gemRes.status, errText);
-      const msg = gemRes.status === 429
+    if (!gemRes || !gemRes.ok) {
+      const status = gemRes ? gemRes.status : 0;
+      console.error("Gemini error:", status || "(timeout/network)", errText);
+      const busy = status === 0 || status === 503 || status === 500 || status === 502;
+      const msg = status === 429
         ? "המערכת עמוסה כרגע (מכסה חינמית) — נסה/י שוב בעוד כדקה"
-        : (gemRes.status === 503 || gemRes.status === 500 || gemRes.status === 502)
+        : busy
           ? "המערכת עמוסה כרגע — נסה/י שוב בעוד רגע"
           : "הניתוח נכשל";
-      res.status(gemRes.status === 429 ? 429 : 502).json({ ok: false, error: msg });
+      res.status(status === 429 ? 429 : 502).json({ ok: false, error: msg });
       return;
     }
 
