@@ -1385,7 +1385,10 @@ body {
             <div style="font-size:12px;color:var(--text2);margin-bottom:4px">מחובר כ:</div>
             <div id="auth-email" style="font-size:14px;font-weight:700;margin-bottom:8px;word-break:break-all">—</div>
             <div style="font-size:12px;color:var(--brand);margin-bottom:12px">☁️ התחנות מסונכרנות בענן</div>
-            <button class="btn-sec" style="cursor:pointer" onclick="signOutCloud()">התנתק</button>
+            <div style="display:flex;flex-direction:column;gap:9px">
+              <button class="btn-sec" style="cursor:pointer" onclick="switchAccount()">🔄 החלף חשבון</button>
+              <button class="btn-sec" style="cursor:pointer" onclick="signOutCloud()">התנתק</button>
+            </div>
           </div>
         </div>
         <div class="card">
@@ -1509,6 +1512,8 @@ function initCloud() {
 function signIn() {
   if (typeof firebase === "undefined" || !firebase.auth) return;
   const provider = new firebase.auth.GoogleAuthProvider();
+  // Always let the user pick which Google account — needed to switch email.
+  provider.setCustomParameters({ prompt: "select_account" });
   const iOS = /iP(hone|ad|od)/.test(navigator.userAgent);
   const standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
   // Popups are unreliable in iOS Safari and blocked in installed PWAs — redirect there.
@@ -1527,6 +1532,13 @@ function signIn() {
 
 function signOutCloud() {
   if (typeof firebase !== "undefined" && firebase.auth) firebase.auth().signOut();
+}
+
+// Switch to a different Google account (change email): sign out, then sign in
+// again — the forced account chooser lets the user pick another email.
+function switchAccount() {
+  if (typeof firebase === "undefined" || !firebase.auth) return;
+  firebase.auth().signOut().then(() => signIn()).catch(() => signIn());
 }
 
 function startCloudWatch() {
