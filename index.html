@@ -1290,7 +1290,7 @@ body {
               </div>
               <div class="card">
                 <div class="card-lbl">מה מחפשים?</div>
-                <div class="chips-wrap">
+                <div class="chips-wrap" id="trip-cats">
                   <div class="chip hike on"   onclick="this.classList.toggle('on')">🥾 טיול</div>
                   <div class="chip coffee on" onclick="this.classList.toggle('on')">☕ קפה</div>
                   <div class="chip food on"   onclick="this.classList.toggle('on')">🍽 אוכל</div>
@@ -2043,6 +2043,12 @@ function resetTripSteps() {
       document.getElementById("t-from").value = t.from || "";
       document.getElementById("t-to").value = t.to || "";
       if (t.radius) { document.getElementById("rslider").value = t.radius; updateSlider(t.radius); }
+      if (Array.isArray(t.cats)) {
+        document.querySelectorAll("#trip-cats .chip").forEach(c => {
+          const k = [...c.classList].find(x => CC[x]);
+          c.classList.toggle("on", t.cats.indexOf(k) !== -1);
+        });
+      }
       startTrip(true);
       return;
     } catch (e) {}
@@ -2229,9 +2235,11 @@ async function startTrip(active) {
     }
   });
 
-  // Filter places by distance from route
+  // Filter by the selected "what are we looking for" categories AND route distance.
+  var tripCats = getTripCats();
   var nearbyPlaces = places.filter(function(p) {
     if (!p.lat || !p.lng) return false;
+    if (tripCats.length && tripCats.indexOf(p.cat) === -1) return false;
     if (routeLatLngs.length === 0) return true;
     var d = minDistToRoute(p.lat, p.lng, routeLatLngs);
     return d <= radiusKm;
@@ -2267,13 +2275,20 @@ async function startTrip(active) {
   // preview of what's along the route ("מצא תחנות בדרך").
   if (active) {
     const radius = parseInt(document.getElementById("rslider").value) || 15;
-    localStorage.setItem("tachanot_trip", JSON.stringify({ from, to, radius }));
+    localStorage.setItem("tachanot_trip", JSON.stringify({ from, to, radius, cats: tripCats }));
     startLiveLocation();
     setTripAction(true);
   } else {
     stopLiveLocation();
     setTripAction(false);
   }
+}
+
+// Selected categories in the trip "what are we looking for" chips.
+function getTripCats() {
+  return [...document.querySelectorAll("#trip-cats .chip.on")]
+    .map(c => [...c.classList].find(k => CC[k]))
+    .filter(Boolean);
 }
 
 // The floating button toggles: start an active trip / end it.
@@ -2296,7 +2311,7 @@ function beginTrip() {
   const from = document.getElementById("t-from").value || "תל אביב";
   const to   = document.getElementById("t-to").value   || "חיפה";
   const radius = parseInt(document.getElementById("rslider").value) || 15;
-  localStorage.setItem("tachanot_trip", JSON.stringify({ from, to, radius }));
+  localStorage.setItem("tachanot_trip", JSON.stringify({ from, to, radius, cats: getTripCats() }));
   startLiveLocation();
   setTripAction(true);
 }
