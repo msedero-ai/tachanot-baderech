@@ -974,16 +974,15 @@ body {
 .chips-wrap{display:flex;flex-wrap:wrap;gap:7px;}
 .chips-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px;scrollbar-width:none;}
 .chips-scroll::-webkit-scrollbar{display:none;}
-/* Desktop (mouse): the swipe gesture isn't available, so let category strips
-   wrap to multiple lines (no scrolling needed) and give card carousels a
-   visible, draggable scrollbar instead of hijacking the mouse wheel. */
+/* Desktop (mouse): the swipe gesture isn't available, so give the horizontal
+   strips (category rows + card carousels) a visible, draggable scrollbar
+   instead of hijacking the mouse wheel. Categories stay on one row. */
 @media (hover: hover) and (pointer: fine) {
-  .hscroll{flex-wrap:wrap!important;overflow-x:visible!important;padding-bottom:0!important;}
   /* Lift the card strip so its scrollbar clears the map attribution line. */
   #home-cards-wrap{bottom:26px!important;}
-  #home-cards, .bs-cards{scrollbar-width:thin!important;}
-  #home-cards::-webkit-scrollbar, .bs-cards::-webkit-scrollbar{display:block!important;height:9px;}
-  #home-cards::-webkit-scrollbar-thumb, .bs-cards::-webkit-scrollbar-thumb{background:rgba(120,120,120,.55);border-radius:5px;}
+  .hscroll, #home-cards, .bs-cards{scrollbar-width:thin!important;}
+  .hscroll::-webkit-scrollbar, #home-cards::-webkit-scrollbar, .bs-cards::-webkit-scrollbar{display:block!important;height:9px;}
+  .hscroll::-webkit-scrollbar-thumb, #home-cards::-webkit-scrollbar-thumb, .bs-cards::-webkit-scrollbar-thumb{background:rgba(120,120,120,.55);border-radius:5px;}
 }
 .src-ig{background:#FDEEF2;color:#C0185A;}
 .src-tt{background:#E6F9F1;color:#0A7A3A;}
