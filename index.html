@@ -1275,7 +1275,7 @@ body {
                 <div class="card-lbl">המסלול</div>
                 <div class="route-inputs">
                   <div class="ri-conn"></div>
-                  <div class="ri-row" style="position:relative"><div class="ri-dot f"></div><input class="f-in" id="t-from" value="תל אביב" placeholder="יוצאים מ..." style="padding-left:42px"><button onclick="useMyLocation()" title="המיקום שלי" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;padding:2px;">📍</button></div>
+                  <div class="ri-row" style="position:relative"><div class="ri-dot f"></div><input class="f-in" id="t-from" value="תל אביב" placeholder="יוצאים מ..." style="padding-left:42px" oninput="fromIsMyLoc=false"><button onclick="useMyLocation()" title="המיקום שלי" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;padding:2px;">📍</button></div>
                   <div class="ri-row"><div class="ri-dot t"></div><input class="f-in" id="t-to" value="חיפה" placeholder="הולכים ל..."></div>
                 </div>
               </div>
@@ -1458,6 +1458,9 @@ let bsExp = false;
 let lastResult = null;
 let myLocation = null;
 let myLocLabel = "";
+// True when the trip "from" field represents the live GPS fix (set by
+// useMyLocation, cleared on manual edit) — more robust than string-matching.
+let fromIsMyLoc = false;
 let tripGeoWatch = null;
 let meMarker = null;
 
@@ -2097,6 +2100,7 @@ function resetTripSteps() {
   if (saved) {
     try {
       const t = JSON.parse(saved);
+      fromIsMyLoc = false;
       document.getElementById("t-from").value = t.from || "";
       document.getElementById("t-to").value = t.to || "";
       if (t.radius) { document.getElementById("rslider").value = t.radius; updateSlider(t.radius); }
@@ -2130,6 +2134,7 @@ function endTrip() {
 function useMyLocation() {
   const inp = document.getElementById("t-from");
   if (!inp || !navigator.geolocation) return;
+  fromIsMyLoc = true;
   inp.value = "מאתר מיקום…";
   navigator.geolocation.getCurrentPosition(
     async pos => {
@@ -2144,7 +2149,7 @@ function useMyLocation() {
       myLocLabel = town ? ("📍 " + town) : "📍 המיקום שלי";
       if (inp.value === "מאתר מיקום…") inp.value = myLocLabel;
     },
-    () => { myLocation = null; if (inp.value === "מאתר מיקום…") inp.value = "תל אביב"; },
+    () => { myLocation = null; fromIsMyLoc = false; if (inp.value === "מאתר מיקום…") inp.value = "תל אביב"; },
     { timeout: 8000, maximumAge: 60000 }
   );
 }
@@ -2202,7 +2207,7 @@ async function startTrip(active) {
   }
 
   const [fromCoords, toCoords] = await Promise.all([
-    (myLocation && from === myLocLabel) ? Promise.resolve(myLocation) : geocodeCity(from),
+    (myLocation && fromIsMyLoc) ? Promise.resolve(myLocation) : geocodeCity(from),
     geocodeCity(to)
   ]);
   const fromLL = fromCoords || [32.085, 34.782];
@@ -2529,6 +2534,10 @@ initCloud();
 if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/sw.js").catch(() => {}); }
 (function(){ const u = document.getElementById("url-in"); if (u) u.addEventListener("input", e => autoSource(e.target.value)); })();
 handleSharedLink();
+// Re-check for share params when an already-open (installed) PWA is re-activated
+// by a new share — it may navigate the warm client to /?url=... without reloading.
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") handleSharedLink(); });
+window.addEventListener("focus", handleSharedLink);
 
 </script>
 </body>
