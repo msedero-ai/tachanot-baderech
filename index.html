@@ -1487,14 +1487,13 @@ function initCloud() {
     db = firebase.firestore();
     firebase.auth().onAuthStateChanged(user => {
       currentUser = user || null;
-      if (user) {
-        cloudReady = true;
-        startCloudWatch();
-      } else {
-        cloudReady = false;
-        if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
-      }
+      cloudReady = !!user;
+      // Reflect auth state in the UI FIRST — a sync error must never leave the
+      // screen showing "logged out" while actually signed in.
       updateAuthUI();
+      if (user) {
+        try { startCloudWatch(); } catch (e) { console.warn("cloud watch failed:", e); }
+      } else if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
     });
     // Complete a pending redirect sign-in (the path iOS Safari / installed PWAs
     // use, since popups are blocked there). onAuthStateChanged handles success;
@@ -1514,10 +1513,12 @@ function signIn() {
   const provider = new firebase.auth.GoogleAuthProvider();
   // Always let the user pick which Google account — needed to switch email.
   provider.setCustomParameters({ prompt: "select_account" });
+  // Only iOS reliably blocks popups (incl. its installed PWAs) and needs redirect.
+  // Everywhere else (desktop + Android, including installed PWAs) popups work and
+  // complete sign-in in place; redirect can fail to return state in a PWA, so we
+  // keep popup-first with a redirect fallback only on actual popup failure.
   const iOS = /iP(hone|ad|od)/.test(navigator.userAgent);
-  const standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
-  // Popups are unreliable in iOS Safari and blocked in installed PWAs — redirect there.
-  if (iOS || standalone) {
+  if (iOS) {
     firebase.auth().signInWithRedirect(provider).catch(err => {
       console.warn("redirect sign-in failed:", err);
       toast("ההתחברות נכשלה — נסו שוב");
