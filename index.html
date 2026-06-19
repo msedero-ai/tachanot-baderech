@@ -2138,6 +2138,12 @@ async function analyzeLink() {
   const url = document.getElementById("url-in").value.trim();
   const extraDesc = (document.getElementById("url-desc")?.value || "").trim();
   if (!url) { document.getElementById("url-in").style.outline="2px solid #E85D3A"; setTimeout(()=>document.getElementById("url-in").style.outline="",1500); return; }
+  // AI recognition ("search") is for signed-in users only — keeps usage tied to
+  // known accounts (and the cost under control).
+  if (!currentUser) {
+    if (confirm("כדי לזהות מקום אוטומטית צריך להתחבר עם Google. להתחבר עכשיו?")) signIn();
+    return;
+  }
   autoSource(url);
   const btn = document.getElementById("btn-an");
   btn.disabled = true;
@@ -2155,9 +2161,11 @@ async function analyzeLink() {
     }
   }, 900);
   try {
+    let idToken = "";
+    try { idToken = await firebase.auth().currentUser.getIdToken(); } catch (e) {}
     const response = await fetch("/api/analyze", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
+      headers: {"Content-Type": "application/json", "Authorization": "Bearer " + idToken},
       body: JSON.stringify({url, extraDesc})
     });
     clearInterval(iv);

@@ -11,9 +11,50 @@
 // Optional: GEMINI_MODEL (defaults to "gemini-2.5-flash"; set to
 //           "gemini-2.5-pro" for max accuracy at higher latency)
 
+import crypto from "node:crypto";
+
 export const maxDuration = 30;
 
 const CATEGORIES = ["hike", "coffee", "food", "view", "beach", "art"];
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "tachanot-baderech";
+
+// Verify a Firebase ID token so only signed-in users can use the AI. Pure
+// Node crypto (no SDK): fetch Google's public x509 certs, verify the RS256
+// signature, then check issuer/audience/expiry.
+let _certs = null, _certsExp = 0;
+async function googleSecureTokenCerts() {
+  if (_certs && Date.now() < _certsExp) return _certs;
+  const r = await fetchWithTimeout("https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com", {}, 4000);
+  _certs = await r.json();
+  _certsExp = Date.now() + 55 * 60 * 1000;
+  return _certs;
+}
+function b64urlToBuf(s) {
+  s = String(s).replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  return Buffer.from(s, "base64");
+}
+async function verifyFirebaseToken(token) {
+  try {
+    if (!token || typeof token !== "string") return null;
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const header = JSON.parse(b64urlToBuf(parts[0]).toString("utf8"));
+    if (header.alg !== "RS256" || !header.kid) return null;
+    const certs = await googleSecureTokenCerts();
+    const pem = certs[header.kid];
+    if (!pem) return null;
+    const ok = crypto.createVerify("RSA-SHA256").update(parts[0] + "." + parts[1]).verify(pem, b64urlToBuf(parts[2]));
+    if (!ok) return null;
+    const payload = JSON.parse(b64urlToBuf(parts[1]).toString("utf8"));
+    const now = Math.floor(Date.now() / 1000);
+    if (!payload.exp || payload.exp <= now) return null;
+    if (payload.iss !== "https://securetoken.google.com/" + FIREBASE_PROJECT_ID) return null;
+    if (payload.aud !== FIREBASE_PROJECT_ID) return null;
+    if (!payload.sub) return null;
+    return { uid: payload.sub, email: payload.email || "" };
+  } catch (e) { return null; }
+}
 
 const SYSTEM_PROMPT = `אתה מומחה לזיהוי מקומות בישראל מתוך לינקים לרשתות חברתיות (אינסטגרם, טיקטוק, פייסבוק, וואטסאפ) וטקסט חופשי.
 
@@ -168,6 +209,15 @@ export default async function handler(req, res) {
   try { originHost = origin ? new URL(origin).host : ""; } catch (e) {}
   if (!host || originHost !== host) {
     res.status(403).json({ ok: false, error: "גישה נדחתה" });
+    return;
+  }
+
+  // Auth gate: AI recognition is for signed-in users only.
+  const authz = req.headers.authorization || "";
+  const idToken = authz.startsWith("Bearer ") ? authz.slice(7) : ((req.body && req.body.idToken) || "");
+  const user = await verifyFirebaseToken(idToken);
+  if (!user) {
+    res.status(401).json({ ok: false, error: "יש להתחבר עם Google כדי לזהות מקומות" });
     return;
   }
 
