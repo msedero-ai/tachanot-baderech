@@ -1359,6 +1359,11 @@ body {
           </div>
         </div>
         <div class="card">
+          <div class="card-lbl">שיתוף 🚀</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">אוהבים את האפליקציה? שתפו עם חברים ומשפחה שאוהבים לטייל ולגלות מקומות.</div>
+          <button class="btn-primary" onclick="shareApp()">🔗 שתף את האפליקציה</button>
+        </div>
+        <div class="card">
           <div class="card-lbl">מצב תצוגה</div>
           <div style="display:flex;justify-content:space-between;align-items:center">
             <span style="font-size:14px;font-weight:600" id="theme-label">מצב בהיר ☀️</span>
@@ -1533,6 +1538,30 @@ function signIn() {
 
 function signOutCloud() {
   if (typeof firebase !== "undefined" && firebase.auth) firebase.auth().signOut();
+}
+
+// Share the app itself (word-of-mouth). Mobile -> native share sheet;
+// desktop / share-unavailable -> copy the link to the clipboard.
+function shareApp() {
+  const url = location.origin + "/";
+  const pitch = "תחנות בדרך — שומרים מקומות מטיקטוק ואינסטגרם ומוצאים אותם בדרך לנסיעה 🚗";
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  if (isMobile && navigator.share) {
+    navigator.share({ title: "תחנות בדרך", text: pitch, url })
+      .catch(err => { if (!err || err.name !== "AbortError") copyAppLink(url); });
+    return;
+  }
+  copyAppLink(url);
+}
+
+function copyAppLink(url) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url)
+      .then(() => toast("הקישור הועתק — שלחו לחברים 📋"))
+      .catch(() => toast(url));
+  } else {
+    toast(url);
+  }
 }
 
 // Switch to a different Google account (change email): sign out, then sign in
