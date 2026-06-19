@@ -1488,6 +1488,13 @@ function initCloud() {
       }
       updateAuthUI();
     });
+    // Complete a pending redirect sign-in (the path iOS Safari / installed PWAs
+    // use, since popups are blocked there). onAuthStateChanged handles success;
+    // this surfaces redirect-specific failures to the user.
+    firebase.auth().getRedirectResult().catch(err => {
+      console.warn("redirect sign-in failed:", err);
+      toast("ההתחברות נכשלה — נסו שוב");
+    });
   } catch (e) {
     console.warn("Cloud sync unavailable:", e);
     updateAuthUI();
@@ -1497,6 +1504,16 @@ function initCloud() {
 function signIn() {
   if (typeof firebase === "undefined" || !firebase.auth) return;
   const provider = new firebase.auth.GoogleAuthProvider();
+  const iOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+  const standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+  // Popups are unreliable in iOS Safari and blocked in installed PWAs — redirect there.
+  if (iOS || standalone) {
+    firebase.auth().signInWithRedirect(provider).catch(err => {
+      console.warn("redirect sign-in failed:", err);
+      toast("ההתחברות נכשלה — נסו שוב");
+    });
+    return;
+  }
   firebase.auth().signInWithPopup(provider).catch(err => {
     console.warn("popup sign-in failed, falling back to redirect:", err);
     firebase.auth().signInWithRedirect(provider);
