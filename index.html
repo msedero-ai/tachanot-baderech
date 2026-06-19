@@ -1590,28 +1590,30 @@ function exportPlaces() {
   const fname = "tachanot-baderech-" + new Date().toISOString().slice(0, 10) + ".json";
   const blob = new Blob([data], { type: "application/json" });
 
-  // Mobile only: the share sheet is the reliable way to save a file (download
-  // often fails silently in PWAs / iOS). Desktop always downloads — on desktop
-  // navigator.share is unreliable and would leave the user with nothing.
-  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-  if (isMobile) {
-    try {
-      const file = new File([blob], fname, { type: "application/json" });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file], title: "גיבוי תחנות בדרך" }).catch(() => {});
-        return;
-      }
-    } catch (e) { /* fall through to download */ }
+  function download() {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
   }
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fname;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // Mobile: try the share sheet (download often fails silently in PWAs/iOS).
+  // If sharing isn't possible or fails (other than a user cancel), fall back to
+  // a normal download so the user is never left with nothing.
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  let file = null;
+  try { file = new File([blob], fname, { type: "application/json" }); } catch (e) {}
+
+  if (isMobile && file && navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: "גיבוי תחנות בדרך", text: "גיבוי תחנות בדרך" })
+      .catch(err => { if (!err || err.name !== "AbortError") download(); });
+    return;
+  }
+  download();
 }
 
 function importPlaces(file) {
