@@ -1316,6 +1316,9 @@ body {
               <button id="trip-back-btn" onclick="goTripStep1()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:22px;padding:9px 14px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:var(--shadow-md);">↩ שנה מסלול</button>
             </div>
             <div id="trip-map"></div>
+            <button onclick="centerOnMe()" title="מרכז סביבי" style="position:absolute;top:64px;right:12px;z-index:500;width:42px;height:42px;border-radius:50%;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-md);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"></circle><line x1="12" y1="2" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="22"></line><line x1="2" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="22" y2="12"></line></svg>
+            </button>
             <div class="bs" id="bs">
               <div class="bs-handle-row" onclick="toggleBS()"><div class="bs-handle"></div></div>
               <div class="bs-top">
@@ -2484,22 +2487,47 @@ function beginTrip() {
 }
 
 // Live "you are here" marker on the trip map, updating during the drive.
-function startLiveLocation() {
-  if (!tripMap || !navigator.geolocation) return;
-  stopLiveLocation();
-  const meIcon = L.divIcon({
+function meDivIcon() {
+  return L.divIcon({
     html: '<div style="width:18px;height:18px;border-radius:50%;background:#1A73E8;border:3px solid #fff;box-shadow:0 0 0 5px rgba(26,115,232,.25),0 1px 5px rgba(0,0,0,.35);"></div>',
     iconSize:[18,18], iconAnchor:[9,9], className:""
   });
+}
+
+// Drop/update the blue "you are here" marker at ll.
+function setMeMarker(ll) {
+  if (!tripMap) return;
+  if (!meMarker) {
+    meMarker = L.marker(ll, { icon: meDivIcon(), zIndexOffset: 1000 }).addTo(tripMap).bindTooltip("המיקום שלי");
+  } else {
+    meMarker.setLatLng(ll);
+  }
+}
+
+function startLiveLocation() {
+  if (!tripMap || !navigator.geolocation) return;
+  stopLiveLocation();
   tripGeoWatch = navigator.geolocation.watchPosition(function(pos) {
     const ll = [pos.coords.latitude, pos.coords.longitude];
     myLocation = ll;
-    if (!meMarker) {
-      meMarker = L.marker(ll, { icon: meIcon, zIndexOffset: 1000 }).addTo(tripMap).bindTooltip("המיקום שלי");
-    } else {
-      meMarker.setLatLng(ll);
-    }
+    setMeMarker(ll);
   }, function() {}, { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 });
+}
+
+// Recenter the trip map on the user. Uses the live position if we have one,
+// then fetches a fresh fix and flies there (also shows the marker in browse mode).
+function centerOnMe() {
+  if (!tripMap) return;
+  if (myLocation) { tripMap.flyTo(myLocation, 15, { duration: .6 }); }
+  if (!navigator.geolocation) { if (!myLocation) toast("מיקום לא זמין במכשיר הזה"); return; }
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    const ll = [pos.coords.latitude, pos.coords.longitude];
+    myLocation = ll;
+    setMeMarker(ll);
+    tripMap.flyTo(ll, 15, { duration: .6 });
+  }, function() {
+    if (!myLocation) toast("לא הצלחנו לאתר את המיקום");
+  }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 12000 });
 }
 
 function stopLiveLocation() {
