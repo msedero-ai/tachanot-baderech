@@ -1441,6 +1441,9 @@ const SS = {ig:"background:#FDEEF2;color:#C0185A",tt:"background:#E6F9F1;color:#
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 // Only allow http(s) links in hrefs — blocks javascript:/data: URLs.
 function safeUrl(u){u=String(u==null?"":u);return /^https?:\/\//i.test(u)?u:"#";}
+// Place id reduced to a safe token — used by id (not array index) in inline
+// onclick handlers, so it must never carry quotes/markup.
+function idStr(v){return String(v==null?"":v).replace(/[^A-Za-z0-9_-]/g,"");}
 
 // ── STATE ──
 let places = [];
@@ -1528,9 +1531,18 @@ function startCloudWatch() {
   if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
   const uid = currentUser.uid;
   // First sign-in for this account on this device: upload existing local places.
+  // Mark migrated only AFTER every push confirms — if any fails (offline/rules)
+  // we retry next session instead of losing those local-only places when the
+  // first snapshot overwrites `places`.
   if (!localStorage.getItem("tachanot_migrated_" + uid)) {
-    places.forEach(p => cloudPush(p));
-    localStorage.setItem("tachanot_migrated_" + uid, "1");
+    const toMigrate = places.slice();
+    if (toMigrate.length) {
+      Promise.all(toMigrate.map(p => cloudPush(p))).then(results => {
+        if (results.every(Boolean)) localStorage.setItem("tachanot_migrated_" + uid, "1");
+      });
+    } else {
+      localStorage.setItem("tachanot_migrated_" + uid, "1");
+    }
   }
   cloudUnsub = db.collection("places").where("uid", "==", uid).onSnapshot(snap => {
     const arr = [];
@@ -1543,13 +1555,13 @@ function startCloudWatch() {
 }
 
 function cloudPush(p) {
-  if (!db || !cloudReady || !currentUser) return;
-  db.collection("places").doc(String(p.id)).set({
+  if (!db || !cloudReady || !currentUser) return Promise.resolve(false);
+  return db.collection("places").doc(String(p.id)).set({
     name: p.name || "", cat: p.cat || "hike", loc: p.loc || "", desc: p.desc || "",
     lat: (p.lat == null ? null : p.lat), lng: (p.lng == null ? null : p.lng),
     src: p.src || "tt", url: p.url || "", time: p.time || "",
     uid: currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  }, { merge: true }).catch(e => console.warn("cloud push failed:", e));
+  }, { merge: true }).then(() => true).catch(e => { console.warn("cloud push failed:", e); return false; });
 }
 
 function cloudRemove(id) {
@@ -1659,10 +1671,29 @@ function importPlaces(file) {
     try {
       const imported = JSON.parse(e.target.result);
       if (!Array.isArray(imported)) { toast("הקובץ אינו בפורמט תקין"); return; }
-      // Keep only objects; ensure each has an id.
+      // Sanitize each record to a known shape — never trust imported JSON
+      // verbatim (it gets cloud-pushed and rendered). Clamp types/length and
+      // restrict cat/src/url/id to safe values.
+      const SRCS = ["tt", "ig", "fb", "wa"];
       const clean = imported
         .filter(p => p && typeof p === "object")
-        .map((p, i) => ({ ...p, id: (p.id != null ? String(p.id) : (Date.now() + i).toString()) }));
+        .map((p, i) => {
+          const lat = Number(p.lat), lng = Number(p.lng);
+          let url = String(p.url || "").trim();
+          if (url && !/^https?:\/\//i.test(url)) url = "";
+          return {
+            id: idStr(p.id) || (Date.now() + i).toString(),
+            name: String(p.name || "").trim().slice(0, 200) || "מקום חדש",
+            cat: CC[p.cat] ? p.cat : "hike",
+            loc: String(p.loc || "").trim().slice(0, 200),
+            desc: String(p.desc || "").trim().slice(0, 1000),
+            src: SRCS.includes(p.src) ? p.src : "oth",
+            lat: Number.isFinite(lat) ? lat : null,
+            lng: Number.isFinite(lng) ? lng : null,
+            time: String(p.time || new Date().toLocaleDateString("he-IL")).slice(0, 40),
+            url: url.slice(0, 2048),
+          };
+        });
       if (!clean.length) { toast("לא נמצאו תחנות בקובץ"); return; }
       places = [...clean, ...places.filter(p => !clean.find(i => String(i.id) === String(p.id)))];
       savePlaces();
@@ -1770,7 +1801,6 @@ function renderHomeMap() {
   if (!cardsEl) return;
   cardsEl.innerHTML = "";
   filtered.forEach((p, i) => {
-    const realIdx = places.indexOf(p);
     const c = document.createElement("div");
     c.className = "hcard";
     c.id = "hcard-" + i;
@@ -1778,12 +1808,12 @@ function renderHomeMap() {
       <div class="hc-top">
         <div class="hc-icon">${CE[p.cat]||"📍"}</div>
         <div class="hc-name">${esc(p.name)}</div>
-        <button onclick="event.stopPropagation();deletePlace(${realIdx})" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:2px 4px;flex-shrink:0;line-height:1;">🗑</button>
+        <button onclick="event.stopPropagation();deletePlace('${idStr(p.id)}')" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:2px 4px;flex-shrink:0;line-height:1;">🗑</button>
       </div>
       <div class="hc-meta">
         <span class="hc-tag" style="background:${CC[p.cat]||"#2C6E5A"}">${esc(CN[p.cat]||p.cat)}</span>
         <span class="hc-src src-${esc(p.src||"oth")}">${esc(SL[p.src]||SL.oth)}</span>
-        <button onclick="event.stopPropagation();editPlace(${realIdx})" style="background:none;border:none;color:var(--brand);cursor:pointer;font-size:11px;font-weight:700;padding:2px 6px;margin-right:auto;font-family:Heebo,sans-serif;">✏️ ערוך</button>
+        <button onclick="event.stopPropagation();editPlace('${idStr(p.id)}')" style="background:none;border:none;color:var(--brand);cursor:pointer;font-size:11px;font-weight:700;padding:2px 6px;margin-right:auto;font-family:Heebo,sans-serif;">✏️ ערוך</button>
       </div>`;
     c.onclick = () => selectHomeCard(i);
     cardsEl.appendChild(c);
@@ -1939,7 +1969,8 @@ function showResult(r, url) {
   }
 }
 
-function deletePlace(idx) {
+function deletePlace(id) {
+  const idx = places.findIndex(p => String(p.id) === String(id));
   const p = places[idx];
   if (!p) return;
   if (!confirm(`למחוק את "${p.name}"?`)) return;
@@ -1949,8 +1980,8 @@ function deletePlace(idx) {
   renderHomeMap();
 }
 
-function editPlace(idx) {
-  const p = places[idx];
+function editPlace(id) {
+  const p = places.find(p => String(p.id) === String(id));
   if (!p) return;
   // Go to add screen with pre-filled data
   goTo("add");
@@ -1973,10 +2004,10 @@ function editPlace(idx) {
     document.getElementById("conf-fill").style.width = "90%";
     document.getElementById("conf-pct").textContent = "90%";
     document.getElementById("res-card").classList.add("show");
-    // Mark edit mode: savePlace() reads window._editIdx to replace the old place.
+    // Mark edit mode: savePlace() reads window._editId to replace the old place.
     const saveBtn = document.querySelector("#s-add .res-body .btn-primary");
     if (saveBtn) saveBtn.textContent = "💾 עדכן תחנה";
-    window._editIdx = idx;
+    window._editId = p.id;
   }, 100);
 }
 
@@ -2024,12 +2055,15 @@ function savePlace() {
   const se = document.querySelector("#s-add .chip.tt.on, #s-add .chip.ig.on, #s-add .chip.fb.on, #s-add .chip.wa.on");
   const src = se ? [...se.classList].find(c => ["tt","ig","fb","wa"].includes(c)) : "tt";
 
-  // Edit mode: remove old place first (locally + in the cloud)
-  if (window._editIdx !== undefined && window._editIdx >= 0) {
-    const oldPlace = places[window._editIdx];
-    if (oldPlace) cloudRemove(oldPlace.id);
-    places.splice(window._editIdx, 1);
-    window._editIdx = undefined;
+  // Edit mode: remove old place first (locally + in the cloud), looked up by
+  // stable id so a cloud snapshot reorder can't make us splice the wrong record.
+  if (window._editId != null) {
+    const oi = places.findIndex(p => String(p.id) === String(window._editId));
+    if (oi >= 0) {
+      cloudRemove(places[oi].id);
+      places.splice(oi, 1);
+    }
+    window._editId = undefined;
     // Reset save button
     const saveBtn = document.querySelector("#s-add .res-body .btn-primary");
     if (saveBtn) saveBtn.textContent = "💾 שמור תחנה";
@@ -2432,8 +2466,7 @@ function renderSaved(cat) {
     return;
   }
   el.innerHTML = filtered.map((p, i) => {
-    const realIdx = places.indexOf(p);
-    return "<div style=\"display:flex;gap:12px;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid var(--border);cursor:pointer;\" onclick=\"goTo('home')\"><div style=\"width:46px;height:46px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;margin-bottom:3px;\">" + esc(p.name) + "</div><div style=\"font-size:11px;color:var(--text2);margin-bottom:6px;\">📍 " + esc(p.loc||"") + " · " + esc(p.time||"") + "</div><div style=\"display:flex;gap:6px;\"><span style=\"font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;color:white;background:" + (CC[p.cat]||"#2C6E5A") + "\">" + esc(CN[p.cat]||p.cat) + "</span></div></div><div style=\"display:flex;flex-direction:column;gap:6px;\"><button onclick=\"event.stopPropagation();editPlace(" + realIdx + ")\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;\">✏️</button><button onclick=\"event.stopPropagation();deletePlace(" + realIdx + ")\" style=\"background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;\">🗑</button></div></div>";
+    return "<div style=\"display:flex;gap:12px;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid var(--border);cursor:pointer;\" onclick=\"goTo('home')\"><div style=\"width:46px;height:46px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;margin-bottom:3px;\">" + esc(p.name) + "</div><div style=\"font-size:11px;color:var(--text2);margin-bottom:6px;\">📍 " + esc(p.loc||"") + " · " + esc(p.time||"") + "</div><div style=\"display:flex;gap:6px;\"><span style=\"font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;color:white;background:" + (CC[p.cat]||"#2C6E5A") + "\">" + esc(CN[p.cat]||p.cat) + "</span></div></div><div style=\"display:flex;flex-direction:column;gap:6px;\"><button onclick=\"event.stopPropagation();editPlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;\">✏️</button><button onclick=\"event.stopPropagation();deletePlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;\">🗑</button></div></div>";
   }).join("");
 }
 
