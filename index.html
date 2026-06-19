@@ -1307,14 +1307,17 @@ body {
                   oninput="updateSlider(this.value)">
               </div>
               <div class="card">
-                <div class="card-lbl">מה מחפשים?</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                  <div class="card-lbl" style="margin-bottom:0;">מה מחפשים?</div>
+                  <button id="trip-cats-toggle" onclick="toggleAllTripCats()" style="background:none;border:none;color:var(--brand);font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;padding:2px 4px;">נקה הכל</button>
+                </div>
                 <div class="chips-wrap" id="trip-cats">
-                  <div class="chip hike on"   onclick="this.classList.toggle('on')">🥾 טיול</div>
-                  <div class="chip coffee on" onclick="this.classList.toggle('on')">☕ קפה</div>
-                  <div class="chip food on"   onclick="this.classList.toggle('on')">🍽 אוכל</div>
-                  <div class="chip view on"   onclick="this.classList.toggle('on')">🌅 תצפית</div>
-                  <div class="chip beach on"  onclick="this.classList.toggle('on')">🏖 חוף</div>
-                  <div class="chip art on"    onclick="this.classList.toggle('on')">🎨 אמנות</div>
+                  <div class="chip hike on"   onclick="this.classList.toggle('on');updateTripCatsToggle()">🥾 טיול</div>
+                  <div class="chip coffee on" onclick="this.classList.toggle('on');updateTripCatsToggle()">☕ קפה</div>
+                  <div class="chip food on"   onclick="this.classList.toggle('on');updateTripCatsToggle()">🍽 אוכל</div>
+                  <div class="chip view on"   onclick="this.classList.toggle('on');updateTripCatsToggle()">🌅 תצפית</div>
+                  <div class="chip beach on"  onclick="this.classList.toggle('on');updateTripCatsToggle()">🏖 חוף</div>
+                  <div class="chip art on"    onclick="this.classList.toggle('on');updateTripCatsToggle()">🎨 אמנות</div>
                 </div>
               </div>
               <button class="btn-primary" onclick="startTrip()">🔍 מצא תחנות בדרך ←</button>
@@ -1703,6 +1706,20 @@ function updateAuthUI() {
 }
 
 // ── SLIDER ──
+// Trip categories: one-tap clear/select-all so picking a small subset is quick.
+function updateTripCatsToggle() {
+  var chips = document.querySelectorAll("#trip-cats .chip");
+  var allOn = [].every.call(chips, function(c) { return c.classList.contains("on"); });
+  var btn = document.getElementById("trip-cats-toggle");
+  if (btn) btn.textContent = allOn ? "נקה הכל" : "בחר הכל";
+}
+function toggleAllTripCats() {
+  var chips = document.querySelectorAll("#trip-cats .chip");
+  var allOn = [].every.call(chips, function(c) { return c.classList.contains("on"); });
+  [].forEach.call(chips, function(c) { c.classList.toggle("on", !allOn); });
+  updateTripCatsToggle();
+}
+
 function updateSlider(val) {
   var el = document.getElementById("rv");
   if (el) el.textContent = val + ' ק"מ';
@@ -2219,6 +2236,7 @@ function resetTripSteps() {
           c.classList.toggle("on", t.cats.indexOf(k) !== -1);
         });
       }
+      updateTripCatsToggle();
       startTrip(true);
       return;
     } catch (e) {}
