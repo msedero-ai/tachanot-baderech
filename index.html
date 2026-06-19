@@ -1110,6 +1110,11 @@ body {
 .help-em{font-size:24px;flex-shrink:0;width:44px;height:44px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;}
 .help-t{font-size:15px;font-weight:800;color:var(--text);margin-bottom:3px;}
 .help-d{font-size:13px;color:var(--text2);line-height:1.65;}
+.help-details{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:18px;}
+.help-details summary{font-size:13px;font-weight:700;color:var(--text);cursor:pointer;line-height:1.5;}
+.help-details ol{margin:12px 0 2px;padding-inline-start:1.3em;}
+.help-details li{font-size:13px;color:var(--text2);line-height:1.75;margin-bottom:7px;}
+.help-details code{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:1px 6px;font-size:11.5px;direction:ltr;display:inline-block;word-break:break-all;}
 .theme-toggle{width:44px;height:24px;background:var(--border);border-radius:12px;position:relative;cursor:pointer;transition:background .3s;flex-shrink:0;}
 [data-theme="dark"] .theme-toggle{background:var(--brand);}
 .theme-toggle::after{content:'';position:absolute;top:2px;right:2px;width:20px;height:20px;background:white;border-radius:50%;transition:transform .3s;box-shadow:0 1px 4px rgba(0,0,0,.2);}
@@ -1458,7 +1463,20 @@ body {
 
       <div class="help-step"><div class="help-em">📍</div><div><div class="help-t">שמירת מקום</div><div class="help-d">ראיתם קפה/טיול/מסעדה בטיקטוק או אינסטגרם? העתיקו את הלינק, הדביקו במסך <b>הוסף תחנה</b> (כפתור ＋), וה-AI יזהה את המקום וישמור אותו על המפה — אפשר גם להוסיף תיאור אם המקום לא זוהה.</div></div></div>
 
-      <div class="help-step"><div class="help-em">📲</div><div><div class="help-t">הוספת מקום מהרשתות</div><div class="help-d"><b>אנדרואיד:</b> לחצו <b>שיתוף</b> על הפוסט ובחרו "תחנות בדרך" — הוא ייפתח עם הלינק מוכן. <b>אייפון:</b> העתיקו את הלינק של הפוסט, פתחו את האפליקציה והדביקו במסך <b>הוסף תחנה</b> — זהו. (למתקדמים: אפשר להגדיר קיצור (Shortcut) של אפל שמוסיף את האפליקציה לתפריט השיתוף גם באייפון.)</div></div></div>
+      <div class="help-step"><div class="help-em">📲</div><div><div class="help-t">הוספת מקום מהרשתות</div><div class="help-d"><b>אנדרואיד:</b> לחצו <b>שיתוף</b> על הפוסט ובחרו "תחנות בדרך" — הוא ייפתח עם הלינק מוכן. <b>אייפון:</b> העתיקו את הלינק של הפוסט, פתחו את האפליקציה והדביקו במסך <b>הוסף תחנה</b> — זהו. (למתקדמים: אפשר להגדיר קיצור (Shortcut) של אפל שמוסיף את האפליקציה לתפריט השיתוף גם באייפון — ראו למטה.)</div></div></div>
+
+      <details class="help-details">
+        <summary>📲 למתקדמים (אייפון): הוספת "תחנות בדרך" לתפריט השיתוף</summary>
+        <ol>
+          <li>פותחים את אפליקציית <b>"קיצורים"</b> (Shortcuts) של אפל ולוחצים <b>➕</b> ליצירת קיצור חדש.</li>
+          <li>לוחצים על כפתור הפרטים (ⓘ) ומפעילים <b>"הצג בגיליון השיתוף"</b>. ודאו שבסוגי הקלט מסומן <b>כתובות URL</b>.</li>
+          <li>מוסיפים פעולה <b>"קודד URL"</b> (URL Encode), והקלט שלה = <b>"קלט הקיצור"</b> (Shortcut Input).</li>
+          <li>מוסיפים פעולה <b>"טקסט"</b> (Text) וכותבים בה: <code>https://tachanot-baderech.vercel.app/?share=</code> ומיד אחרי זה מוסיפים את המשתנה <b>"טקסט מקודד"</b> (התוצאה מהשלב הקודם).</li>
+          <li>מוסיפים פעולה <b>"פתח כתובות URL"</b> (Open URLs), והקלט = ה<b>טקסט</b> מהשלב הקודם.</li>
+          <li>נותנים לקיצור שם: <b>תחנות בדרך</b>, ושומרים.</li>
+          <li>מעכשיו, בטיקטוק/אינסטגרם: <b>שיתוף ← תחנות בדרך</b>, והאפליקציה תיפתח עם הלינק מוכן לזיהוי. ✨</li>
+        </ol>
+      </details>
 
       <div class="help-step"><div class="help-em">🗺️</div><div><div class="help-t">מצא תחנות בדרך</div><div class="help-d">במסך <b>טיול</b> בחרו מאיפה לאן, וראו אילו מהמקומות ששמרתם נמצאים על המסלול — בלי להתחיל טיול, רק להציץ.</div></div></div>
 
