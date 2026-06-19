@@ -974,6 +974,15 @@ body {
 .chips-wrap{display:flex;flex-wrap:wrap;gap:7px;}
 .chips-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px;scrollbar-width:none;}
 .chips-scroll::-webkit-scrollbar{display:none;}
+/* Desktop (mouse): the swipe gesture isn't available, so let category strips
+   wrap to multiple lines (no scrolling needed) and give card carousels a
+   visible, draggable scrollbar instead of hijacking the mouse wheel. */
+@media (hover: hover) and (pointer: fine) {
+  .hscroll{flex-wrap:wrap!important;overflow-x:visible!important;padding-bottom:0!important;}
+  #home-cards, .bs-cards{scrollbar-width:thin!important;}
+  #home-cards::-webkit-scrollbar, .bs-cards::-webkit-scrollbar{display:block!important;height:9px;}
+  #home-cards::-webkit-scrollbar-thumb, .bs-cards::-webkit-scrollbar-thumb{background:rgba(120,120,120,.55);border-radius:5px;}
+}
 .src-ig{background:#FDEEF2;color:#C0185A;}
 .src-tt{background:#E6F9F1;color:#0A7A3A;}
 .src-fb{background:#E8F0FC;color:#1650B0;}
@@ -2630,23 +2639,6 @@ document.getElementById("screens-wrap").addEventListener("wheel", function(e){
   target.scrollTop += e.deltaY;
   e.preventDefault();
 }, {passive:false});
-
-// Desktop: convert vertical mouse-wheel into horizontal scroll over the strips
-// you'd swipe on touch (category rows, card carousels). No-op when there's
-// nothing to scroll, so normal page scrolling still works.
-function enableHScroll(el) {
-  if (!el || el._hsc) return;
-  el._hsc = true;
-  el.addEventListener("wheel", function(e) {
-    if (e.deltaY === 0 || el.scrollWidth <= el.clientWidth) return;
-    el.scrollLeft += e.deltaY;
-    e.preventDefault();
-    e.stopPropagation();
-  }, { passive: false });
-}
-[".hscroll", "#home-cards", ".chips-scroll", ".bs-cards"].forEach(function(sel) {
-  document.querySelectorAll(sel).forEach(enableHScroll);
-});
 
 // ── INIT ──
 // Handle a link shared into the app (Android share target / iOS shortcut / ?share=).
