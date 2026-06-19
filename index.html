@@ -2291,7 +2291,7 @@ async function startTrip(active) {
     m.on("click", function() { activateBSCard(i); });
     tripMarkers.push(m);
   });
-  setTimeout(function() { if(tripMarkers[0]) tripMarkers[0].openPopup(); }, 800);
+  // Popups open on tap only (no auto-open of the first station).
 
   // Active trip = persisted + live tracking + "end" button. Otherwise just a
   // preview of what's along the route ("מצא תחנות בדרך").
