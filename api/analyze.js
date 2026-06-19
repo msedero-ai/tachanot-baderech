@@ -96,15 +96,28 @@ async function tiktokOembed(url) {
 }
 
 async function ogMeta(url) {
-  if (!isPublicHttpUrl(url)) return "";
   try {
-    const r = await fetchWithTimeout(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; facebookexternalhit/1.1; +http://www.facebook.com/externalhit_uatext.php)",
-        "Accept-Language": "he,en;q=0.9",
-      },
-    }, 3000);
-    if (!r.ok) return "";
+    // Follow redirects manually, re-validating each hop, so a public URL can't
+    // 302-pivot to an internal/metadata address (SSRF). Cap at 4 hops.
+    let target = url, r = null;
+    for (let hop = 0; hop < 4; hop++) {
+      if (!isPublicHttpUrl(target)) return "";
+      r = await fetchWithTimeout(target, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; facebookexternalhit/1.1; +http://www.facebook.com/externalhit_uatext.php)",
+          "Accept-Language": "he,en;q=0.9",
+        },
+        redirect: "manual",
+      }, 3000);
+      if (r.status >= 300 && r.status < 400) {
+        const loc = r.headers.get("location");
+        if (!loc) return "";
+        target = new URL(loc, target).toString();
+        continue;
+      }
+      break;
+    }
+    if (!r || !r.ok) return "";
     const html = (await r.text()).slice(0, 300000);
     const grab = (prop) => {
       const m =
@@ -151,11 +164,17 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { url, extraDesc } = req.body || {};
+  // Coerce + bound user input — public endpoint, so limit type/length/scheme abuse.
+  let { url, extraDesc } = req.body || {};
+  url = url == null ? "" : String(url).trim().slice(0, 2048);
+  extraDesc = extraDesc == null ? "" : String(extraDesc).trim().slice(0, 2000);
   if (!url && !extraDesc) {
     res.status(400).json({ ok: false, error: "חסר לינק או תיאור" });
     return;
   }
+  // Normalize a scheme-less link (e.g. pasted "instagram.com/...") to https so
+  // downstream URL parsing / SSRF checks work; keep everything http(s)-only.
+  if (url && !/^https?:\/\//i.test(url)) url = "https://" + url;
 
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
@@ -208,8 +227,11 @@ export default async function handler(req, res) {
       const status = gemRes ? gemRes.status : 0;
       console.error("Gemini error:", status || "(timeout/network)", errText);
       const busy = status === 0 || status === 503 || status === 500 || status === 502;
+      const retryAfter = gemRes ? gemRes.headers.get("retry-after") : null;
       const msg = status === 429
-        ? "המערכת עמוסה כרגע (מכסה חינמית) — נסה/י שוב בעוד כדקה"
+        ? (retryAfter && /^\d+$/.test(retryAfter)
+            ? `המערכת עמוסה כרגע (מכסה חינמית) — נסה/י שוב בעוד ${retryAfter} שניות`
+            : "המערכת עמוסה כרגע (מכסה חינמית) — נסה/י שוב בעוד כדקה")
         : busy
           ? "המערכת עמוסה כרגע — נסה/י שוב בעוד רגע"
           : "הניתוח נכשל";
@@ -234,7 +256,14 @@ export default async function handler(req, res) {
       return;
     }
 
-    const raw = JSON.parse(text);
+    let raw;
+    try {
+      raw = JSON.parse(text);
+    } catch (e) {
+      console.error("Gemini JSON parse failed:", text.slice(0, 500));
+      res.status(502).json({ ok: false, error: "לא הצלחתי לזהות מהלינק — הוסף/י תיאור קצר (שם המקום/עיר) ונסה/י שוב" });
+      return;
+    }
     const lat = Number(raw.lat);
     const lng = Number(raw.lng);
     const conf = Math.max(0, Math.min(100, Math.round(Number(raw.confidence))));
