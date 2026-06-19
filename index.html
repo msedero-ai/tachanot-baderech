@@ -1302,7 +1302,7 @@ body {
             </div>
           </div>
           <div class="t-step map-step" id="tp2">
-            <button onclick="endTrip()" style="position:absolute;top:12px;right:12px;z-index:500;background:var(--accent);color:#fff;border:none;border-radius:22px;padding:9px 16px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:var(--shadow-md);">✕ סיים טיול</button>
+            <button id="trip-action-btn" onclick="beginTrip()" style="position:absolute;top:12px;right:12px;z-index:500;background:var(--brand);color:#fff;border:none;border-radius:22px;padding:9px 16px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:var(--shadow-md);">🚗 התחל טיול</button>
             <div id="trip-map"></div>
             <div class="bs" id="bs">
               <div class="bs-handle-row" onclick="toggleBS()"><div class="bs-handle"></div></div>
@@ -2042,7 +2042,7 @@ function resetTripSteps() {
       document.getElementById("t-from").value = t.from || "";
       document.getElementById("t-to").value = t.to || "";
       if (t.radius) { document.getElementById("rslider").value = t.radius; updateSlider(t.radius); }
-      startTrip();
+      startTrip(true);
       return;
     } catch (e) {}
   }
@@ -2095,12 +2095,9 @@ function setStep(n) {
   });
 }
 
-async function startTrip() {
+async function startTrip(active) {
   const from = document.getElementById("t-from").value || "תל אביב";
   const to   = document.getElementById("t-to").value   || "חיפה";
-  // Persist the active trip so it survives navigation / app relaunch.
-  const radius = parseInt(document.getElementById("rslider").value) || 15;
-  localStorage.setItem("tachanot_trip", JSON.stringify({ from, to, radius }));
   document.getElementById("tp1").classList.remove("active");
   document.getElementById("tp2").classList.add("active");
   setStep(2);
@@ -2265,7 +2262,42 @@ async function startTrip() {
   });
   setTimeout(function() { if(tripMarkers[0]) tripMarkers[0].openPopup(); }, 800);
 
+  // Active trip = persisted + live tracking + "end" button. Otherwise just a
+  // preview of what's along the route ("מצא תחנות בדרך").
+  if (active) {
+    const radius = parseInt(document.getElementById("rslider").value) || 15;
+    localStorage.setItem("tachanot_trip", JSON.stringify({ from, to, radius }));
+    startLiveLocation();
+    setTripAction(true);
+  } else {
+    stopLiveLocation();
+    setTripAction(false);
+  }
+}
+
+// The floating button toggles: start an active trip / end it.
+function setTripAction(active) {
+  const btn = document.getElementById("trip-action-btn");
+  if (!btn) return;
+  if (active) {
+    btn.textContent = "✕ סיים טיול";
+    btn.onclick = endTrip;
+    btn.style.background = "var(--accent)";
+  } else {
+    btn.textContent = "🚗 התחל טיול";
+    btn.onclick = beginTrip;
+    btn.style.background = "var(--brand)";
+  }
+}
+
+// Begin an active trip from the current results view (persist + live tracking).
+function beginTrip() {
+  const from = document.getElementById("t-from").value || "תל אביב";
+  const to   = document.getElementById("t-to").value   || "חיפה";
+  const radius = parseInt(document.getElementById("rslider").value) || 15;
+  localStorage.setItem("tachanot_trip", JSON.stringify({ from, to, radius }));
   startLiveLocation();
+  setTripAction(true);
 }
 
 // Live "you are here" marker on the trip map, updating during the drive.
