@@ -158,6 +158,19 @@ export default async function handler(req, res) {
     return;
   }
 
+  // Same-origin gate: the app's own fetch sends an Origin/Referer matching the
+  // serving host. Reject anything else (raises the bar against scripted abuse of
+  // this unauthenticated, billed proxy). Works across vercel.app/preview/custom
+  // domains since it compares to the actual host, not a hard-coded value.
+  const host = req.headers.host || "";
+  const origin = req.headers.origin || req.headers.referer || "";
+  let originHost = "";
+  try { originHost = origin ? new URL(origin).host : ""; } catch (e) {}
+  if (!host || originHost !== host) {
+    res.status(403).json({ ok: false, error: "גישה נדחתה" });
+    return;
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     res.status(500).json({ ok: false, error: "GEMINI_API_KEY חסר בהגדרות השרת" });
