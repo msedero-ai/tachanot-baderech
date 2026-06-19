@@ -1585,22 +1585,23 @@ function closeHelp() {
 function shareApp() {
   const url = location.origin + "/";
   const pitch = "תחנות בדרך — שומרים מקומות מטיקטוק ואינסטגרם ומוצאים אותם בדרך לנסיעה 🚗";
+  const message = pitch + "\n" + url;
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   if (isMobile && navigator.share) {
     navigator.share({ title: "תחנות בדרך", text: pitch, url })
-      .catch(err => { if (!err || err.name !== "AbortError") copyAppLink(url); });
+      .catch(err => { if (!err || err.name !== "AbortError") copyAppLink(message); });
     return;
   }
-  copyAppLink(url);
+  copyAppLink(message);
 }
 
-function copyAppLink(url) {
+function copyAppLink(message) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url)
-      .then(() => toast("הקישור הועתק — שלחו לחברים 📋"))
-      .catch(() => toast(url));
+    navigator.clipboard.writeText(message)
+      .then(() => toast("הטקסט הועתק — שלחו לחברים 📋"))
+      .catch(() => toast(message));
   } else {
-    toast(url);
+    toast(message);
   }
 }
 
