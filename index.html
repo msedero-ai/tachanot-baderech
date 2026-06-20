@@ -1639,7 +1639,7 @@ function closeHelp() {
 
 function shareApp() {
   const url = location.origin + "/";
-  const pitch = "תחנות בדרך — שומרים מקומות מטיקטוק ואינסטגרם ומוצאים אותם בדרך לנסיעה 🚗";
+  const pitch = "חבר'ה, גיליתי אפליקציה ששווה! 🚗 שומרים מקומות מטיקטוק ואינסטגרם, והיא מזכירה לכם אותם בדיוק כשאתם נוסעים לידם. בואו תנסו, חינם 👇";
   const message = pitch + "\n" + url;
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   if (isMobile && navigator.share) {
@@ -1688,7 +1688,7 @@ function sharePlace(id) {
     // Signed out: encode the place in the link itself (longer, but no backend).
     link = location.origin + "/?place=" + b64urlEncode(JSON.stringify(payload));
   }
-  const pitch = "מקום ב\"תחנות בדרך\": " + (p.name||"מקום") + (p.loc ? " · " + p.loc : "");
+  const pitch = "שמרתי לך מקום ששווה! 😍 📍 " + (p.name||"מקום") + (p.loc ? " · " + p.loc : "") + "\nפתח/י ושמור/י אצלך 👇";
   const message = pitch + "\n" + link;
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   if (isMobile && navigator.share) {
