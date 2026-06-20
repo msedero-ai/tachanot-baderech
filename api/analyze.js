@@ -44,7 +44,9 @@ async function verifyFirebaseToken(token) {
     const certs = await googleSecureTokenCerts();
     const pem = certs[header.kid];
     if (!pem) return null;
-    const ok = crypto.createVerify("RSA-SHA256").update(parts[0] + "." + parts[1]).verify(pem, b64urlToBuf(parts[2]));
+    // crypto.verify needs a PUBLIC KEY, not a certificate — extract it from the x509 cert.
+    const pubKey = new crypto.X509Certificate(pem).publicKey;
+    const ok = crypto.createVerify("RSA-SHA256").update(parts[0] + "." + parts[1]).verify(pubKey, b64urlToBuf(parts[2]));
     if (!ok) return null;
     const payload = JSON.parse(b64urlToBuf(parts[1]).toString("utf8"));
     const now = Math.floor(Date.now() / 1000);
