@@ -1523,7 +1523,7 @@ body {
 
       <div class="help-step"><div class="help-em">☁️</div><div><div class="help-t">סנכרון בענן</div><div class="help-d">התחברו עם Google במסך <b>פרופיל</b> כדי לשמור את התחנות בענן ולסנכרן אוטומטית בין כל המכשירים שלכם.</div></div></div>
 
-      <div class="help-step"><div class="help-em">📱</div><div><div class="help-t">התקנה למסך הבית</div><div class="help-d">הוסיפו את האפליקציה למסך הבית — גישה בלחיצה אחת, פתיחה במסך מלא, ועובדת גם בלי אינטרנט. (בתפריט הדפדפן ← "הוסף למסך הבית".)</div></div></div>
+      <div class="help-step"><div class="help-em">📱</div><div><div class="help-t">התקנה למסך הבית</div><div class="help-d">גישה בלחיצה אחת, פתיחה במסך מלא, ועובדת גם בלי אינטרנט.<br><button onclick="installOrGuide()" style="margin-top:9px;background:var(--brand);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">📲 התקן את האפליקציה</button></div></div></div>
 
       <button class="btn-primary" style="margin-top:8px;" onclick="closeHelp()">הבנתי, יאללה 🚀</button>
     </div>
@@ -2982,6 +2982,20 @@ function doInstall(){
   if (!deferredInstall) return;
   deferredInstall.prompt();
   deferredInstall.userChoice.finally(() => { deferredInstall = null; dismissInstall(); });
+}
+// Install button (help page): installs directly on Android when the browser
+// allows it; otherwise shows the platform's manual steps.
+function installOrGuide(){
+  if (isStandalone()) { toast("האפליקציה כבר מותקנת ✓"); return; }
+  if (deferredInstall) { doInstall(); return; }
+  const ua = navigator.userAgent;
+  if (/iP(hone|ad|od)/.test(ua)) {
+    alert("התקנה באייפון (Safari):\n\n1. הקש על כפתור השיתוף ⬆️ בתחתית המסך.\n2. גלול ובחר \"הוסף למסך הבית\".\n3. הקש \"הוסף\".");
+  } else if (/Android/i.test(ua)) {
+    alert("התקנה באנדרואיד (Chrome):\n\n1. הקש על תפריט ⋮ (למעלה מימין).\n2. בחר \"התקן אפליקציה\" או \"הוסף למסך הבית\".");
+  } else {
+    alert("התקנה במחשב (Chrome/Edge):\n\nלחץ על אייקון ההתקנה בשורת הכתובת, או תפריט ⋮ ← \"התקן\".");
+  }
 }
 function dismissInstall(){
   try { localStorage.setItem("tachanot_install_dismissed", "1"); } catch (e) {}
