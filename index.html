@@ -1469,7 +1469,7 @@ body {
       <div class="ni-ic">👤</div><div class="ni-lb">פרופיל</div>
     </div>
   </div>
-  <div id="toast" style="position:absolute;left:50%;bottom:calc(var(--nav-h) + var(--safe-b) + 18px);transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:600;max-width:80%;text-align:center;"></div>
+  <div id="toast" style="position:absolute;left:50%;bottom:calc(var(--nav-h) + var(--safe-b) + 18px);transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:1300;max-width:80%;text-align:center;"></div>
 
   <!-- INSTALL (add to home screen) banner -->
   <div id="install-banner" style="display:none;position:absolute;left:10px;right:10px;bottom:calc(var(--nav-h) + var(--safe-b) + 14px);z-index:650;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-lg);padding:12px 14px;align-items:center;gap:10px;">
@@ -2986,7 +2986,7 @@ function doInstall(){
 // Install button (help page): installs directly on Android when the browser
 // allows it; otherwise shows the platform's manual steps.
 function installOrGuide(){
-  if (isStandalone()) { toast("האפליקציה כבר מותקנת ✓"); return; }
+  if (isStandalone()) { alert("האפליקציה כבר מותקנת על המכשיר ✓"); return; }
   if (deferredInstall) { doInstall(); return; }
   const ua = navigator.userAgent;
   if (/iP(hone|ad|od)/.test(ua)) {
