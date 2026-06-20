@@ -1575,7 +1575,7 @@ const firebaseConfig = {
   messagingSenderId: "598998008121",
   appId: "1:598998008121:web:25316e97dfd005236268e8"
 };
-let db = null, cloudReady = false, cloudUnsub = null, currentUser = null;
+let db = null, cloudReady = false, cloudUnsub = null, currentUser = null, authResolved = false;
 
 function initCloud() {
   if (typeof firebase === "undefined") { updateAuthUI(); return; }
@@ -1583,6 +1583,7 @@ function initCloud() {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     firebase.auth().onAuthStateChanged(user => {
+      authResolved = true;
       currentUser = user || null;
       cloudReady = !!user;
       // Reflect auth state in the UI FIRST — a sync error must never leave the
@@ -1758,8 +1759,8 @@ function loadSharedPlace(raw) {
     document.getElementById("res-nm").textContent = p.name;
     document.getElementById("conf-fill").style.width = "90%";
     document.getElementById("conf-pct").textContent = "90%";
-    const sh = document.getElementById("sync-hint");
-    if (sh) sh.style.display = (!dup && !currentUser) ? "block" : "none";
+    window._sharedHint = !dup;  // eligible for the sync hint (re-evaluated once auth resolves)
+    refreshSyncHint();
     document.getElementById("res-card").classList.add("show");
     const saveBtn = document.querySelector("#s-add .res-body .btn-primary");
     window._editId = dup ? dup.id : undefined;
@@ -1837,6 +1838,15 @@ function rerenderAll() {
   if (curScreen === "profile") renderProfileStats();
 }
 
+// Show the "sign in to sync" hint only for a shared-place view, by a confirmed
+// signed-out user. authResolved guards against the brief window on load before
+// Firebase restores the session (which falsely looked "logged out").
+function refreshSyncHint() {
+  const sh = document.getElementById("sync-hint");
+  if (!sh) return;
+  sh.style.display = (window._sharedHint && authResolved && !currentUser) ? "block" : "none";
+}
+
 function updateAuthUI() {
   const out = document.getElementById("auth-out");
   const inn = document.getElementById("auth-in");
@@ -1845,11 +1855,11 @@ function updateAuthUI() {
     if (out) out.style.display = "none";
     if (inn) inn.style.display = "block";
     if (em) em.textContent = currentUser.email || currentUser.displayName || "מחובר";
-    const sh = document.getElementById("sync-hint"); if (sh) sh.style.display = "none";
   } else {
     if (out) out.style.display = "block";
     if (inn) inn.style.display = "none";
   }
+  refreshSyncHint();
 }
 
 // ── SLIDER ──
@@ -2231,7 +2241,7 @@ function showResult(r, url) {
     document.getElementById("conf-fill").style.width = r.confidence + "%";
     document.getElementById("conf-pct").textContent = r.confidence + "%";
   }, 100);
-  { const sh = document.getElementById("sync-hint"); if (sh) sh.style.display = "none"; }
+  window._sharedHint = false; refreshSyncHint();
   document.getElementById("res-card").classList.add("show");
 
   // זיהוי לא ודאי → הצג הודעה למשתמש ובקש בדיקה/השלמה ידנית.
@@ -2289,7 +2299,7 @@ function editPlace(id) {
     document.getElementById("res-nm").textContent = p.name;
     document.getElementById("conf-fill").style.width = "90%";
     document.getElementById("conf-pct").textContent = "90%";
-    const sh = document.getElementById("sync-hint"); if (sh) sh.style.display = "none";
+    window._sharedHint = false; refreshSyncHint();
     document.getElementById("res-card").classList.add("show");
     // Mark edit mode: savePlace() reads window._editId to replace the old place.
     const saveBtn = document.querySelector("#s-add .res-body .btn-primary");
