@@ -1657,7 +1657,7 @@ function closeHelp() {
 
 function shareApp() {
   const url = location.origin + "/";
-  const pitch = "ראיתם מקום מגניב ברשתות 👀? \"תחנות בדרך\" שומרת אותו, ומראה לכם אילו מהמקומות ששמרתם על המסלול כשאתם נוסעים 🚗";
+  const pitch = "ראיתם מקום מגניב בטיקטוק/אינסטגרם 👀? משתפים אותו ל\"תחנות בדרך\", והיא שומרת אותו ומראה לכם אותו על המסלול כשאתם נוסעים 🚗";
   const message = pitch + "\n" + url;
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   if (isMobile && navigator.share) {
@@ -1706,7 +1706,7 @@ function sharePlace(id) {
     // Signed out: encode the place in the link itself (longer, but no backend).
     link = location.origin + "/?place=" + b64urlEncode(JSON.stringify(payload));
   }
-  const appLine = "ראיתם מקום מגניב ברשתות 👀? \"תחנות בדרך\" שומרת אותו, ומראה לכם אילו מהמקומות ששמרתם על המסלול כשאתם נוסעים 🚗";
+  const appLine = "ראיתם מקום מגניב בטיקטוק/אינסטגרם 👀? משתפים אותו ל\"תחנות בדרך\", והיא שומרת אותו ומראה לכם אותו על המסלול כשאתם נוסעים 🚗";
   const pitch = "שמרתי לך מקום שווה! " + (p.name||"מקום") + "\nפתח/י ושמור/י אצלך 👇";
   const message = pitch + "\n" + link + "\n\n" + appLine;
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
