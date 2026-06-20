@@ -1689,7 +1689,7 @@ function sharePlace(id) {
     link = location.origin + "/?place=" + b64urlEncode(JSON.stringify(payload));
   }
   const appLine = "ראיתם מקום מגניב ברשתות 👀? \"תחנות בדרך\" שומרת אותו, ומראה לכם אילו מהמקומות ששמרתם על המסלול כשאתם נוסעים 🚗";
-  const pitch = "שמרתי לך מקום ששווה! 😍 📍 " + (p.name||"מקום") + (p.loc ? " · " + p.loc : "") + "\nפתח/י ושמור/י אצלך 👇";
+  const pitch = "שמרתי לך מקום ששווה! " + (p.name||"מקום") + (p.loc ? " · " + p.loc : "") + "\nפתח/י ושמור/י אצלך 👇";
   const message = pitch + "\n" + link + "\n\n" + appLine;
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   if (isMobile && navigator.share) {
