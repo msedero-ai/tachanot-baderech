@@ -1992,8 +1992,8 @@ function goTo(screen) {
   if (curScreen === screen) return;
   // Cancel any pending edit when leaving the add screen, so the next save
   // doesn't accidentally delete the place we were editing.
-  if (curScreen === "add" && window._editIdx !== undefined) {
-    window._editIdx = undefined;
+  if (curScreen === "add" && window._editId !== undefined) {
+    window._editId = undefined;
     const cancelBtn = document.querySelector("#s-add .res-body .btn-primary");
     if (cancelBtn) cancelBtn.textContent = "💾 שמור תחנה";
   }
