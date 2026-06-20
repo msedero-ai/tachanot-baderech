@@ -1563,7 +1563,7 @@ const SS = {ig:"background:#FDEEF2;color:#C0185A",tt:"background:#E6F9F1;color:#
 // so escape them to avoid broken layout and script injection.
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 // Only allow http(s) links in hrefs — blocks javascript:/data: URLs.
-function safeUrl(u){u=String(u==null?"":u);return /^https?:\/\//i.test(u)?u:"#";}
+function safeUrl(u){u=String(u==null?"":u).trim();try{const x=new URL(u);return (x.protocol==="http:"||x.protocol==="https:")?x.href:"#";}catch(e){return "#";}}
 // Place id reduced to a safe token — used by id (not array index) in inline
 // onclick handlers, so it must never carry quotes/markup.
 function idStr(v){return String(v==null?"":v).replace(/[^A-Za-z0-9_-]/g,"");}
@@ -1606,6 +1606,7 @@ function initCloud() {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     firebase.auth().onAuthStateChanged(user => {
+      const wasSignedIn = !!currentUser;
       authResolved = true;
       currentUser = user || null;
       cloudReady = !!user;
@@ -1615,14 +1616,21 @@ function initCloud() {
       if (user) {
         upsertUserDoc(user);
         try { startCloudWatch(); } catch (e) { console.warn("cloud watch failed:", e); }
-      } else if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
+      } else {
+        if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
+        // Real sign-out (not the initial load-while-signed-out): clear the local
+        // copy so a different account on a shared device can't inherit / re-upload it.
+        if (wasSignedIn) { places = []; savePlaces(); rerenderAll(); }
+      }
     });
-    // Complete a pending redirect sign-in (the path iOS Safari / installed PWAs
-    // use, since popups are blocked there). onAuthStateChanged handles success;
-    // this surfaces redirect-specific failures to the user.
+    // Complete a pending redirect sign-in (the iOS-Safari fallback path).
+    // onAuthStateChanged handles success; only surface genuine auth failures.
     firebase.auth().getRedirectResult().catch(err => {
-      console.warn("redirect sign-in failed:", err);
-      toast("ההתחברות נכשלה — נסו שוב");
+      const code = err && err.code;
+      if (code && code !== "auth/no-auth-event" && code !== "auth/null-user") {
+        console.warn("redirect sign-in failed:", code);
+        toast("ההתחברות נכשלה — נסו שוב");
+      }
     });
   } catch (e) {
     console.warn("Cloud sync unavailable:", e);
@@ -1756,6 +1764,7 @@ function loadSharedPlace(raw) {
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null,
     url: url.slice(0,2048),
+    src: ["tt","ig","fb","wa"].includes(raw.s) ? raw.s : "oth",
   };
   const dup = findDuplicate(p);
   if (dup) {
@@ -1773,6 +1782,7 @@ function loadSharedPlace(raw) {
     document.querySelectorAll("#cat-opts .chip").forEach(c => c.classList.remove("on"));
     const ce = document.querySelector("#cat-opts .chip." + p.cat);
     if (ce) ce.classList.add("on");
+    setSrcChip(p.src);
     lastResult = { lat: p.lat, lng: p.lng, url: p.url, emoji: CE[p.cat] || "📍" };
     document.getElementById("res-hdr").style.background = CC[p.cat] || "#2C6E5A";
     document.getElementById("res-em").textContent = CE[p.cat] || "📍";
@@ -1800,28 +1810,34 @@ function startCloudWatch() {
   if (!db || !cloudReady || !currentUser) return;
   if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
   const uid = currentUser.uid;
-  // First sign-in for this account on this device: upload existing local places.
-  // Mark migrated only AFTER every push confirms — if any fails (offline/rules)
-  // we retry next session instead of losing those local-only places when the
-  // first snapshot overwrites `places`.
+  const subscribe = () => {
+    cloudUnsub = db.collection("places").where("uid", "==", uid).onSnapshot(snap => {
+      const arr = [];
+      snap.forEach(d => arr.push({ ...d.data(), id: d.id }));
+      arr.sort((a, b) => ((b.createdAt && b.createdAt.seconds) || 0) - ((a.createdAt && a.createdAt.seconds) || 0) || (String(b.id) > String(a.id) ? 1 : -1));
+      places = arr;
+      savePlaces();
+      rerenderAll();
+    }, err => console.warn("snapshot error:", err));
+  };
+  // First sign-in for this account on this device: upload existing local places,
+  // and subscribe ONLY AFTER the migration pushes resolve — otherwise the first
+  // snapshot (often empty) can overwrite local places before they're saved.
   if (!localStorage.getItem("tachanot_migrated_" + uid)) {
     const toMigrate = places.slice();
     if (toMigrate.length) {
       Promise.all(toMigrate.map(p => cloudPush(p))).then(results => {
-        if (results.every(Boolean)) localStorage.setItem("tachanot_migrated_" + uid, "1");
+        if (results.every(Boolean)) { localStorage.setItem("tachanot_migrated_" + uid, "1"); subscribe(); }
+        // else: migration incomplete (e.g. offline) — keep local places and retry
+        // next session; do NOT subscribe-replace, which would drop the un-pushed ones.
       });
     } else {
       localStorage.setItem("tachanot_migrated_" + uid, "1");
+      subscribe();
     }
+  } else {
+    subscribe();
   }
-  cloudUnsub = db.collection("places").where("uid", "==", uid).onSnapshot(snap => {
-    const arr = [];
-    snap.forEach(d => arr.push({ ...d.data(), id: d.id }));
-    arr.sort((a, b) => ((b.createdAt && b.createdAt.seconds) || 0) - ((a.createdAt && a.createdAt.seconds) || 0) || (String(b.id) > String(a.id) ? 1 : -1));
-    places = arr;
-    savePlaces();
-    rerenderAll();
-  }, err => console.warn("snapshot error:", err));
 }
 
 function cloudPush(p) {
@@ -2070,6 +2086,8 @@ function importPlaces(file) {
 
 // ── NAVIGATION ──
 function goTo(screen) {
+  // Close any open full-screen overlay so navigation isn't hidden behind it.
+  closeHelp(); if (typeof closeAdmin === "function") closeAdmin();
   if (curScreen === screen) return;
   // Cancel any pending edit when leaving the add screen, so the next save
   // doesn't accidentally delete the place we were editing.
@@ -2152,7 +2170,7 @@ function renderHomeMap() {
         iconSize:[38,38], iconAnchor:[19,38], popupAnchor:[0,-42], className:""
       })
     }).addTo(homeMap);
-    m.bindPopup(`<div class="pw"><div class="pw-name">${esc(p.name)}</div><div class="pw-sub">${esc(CN[p.cat]||p.cat)} · ${esc(p.loc||"")}</div><div class="pw-meta"><span class="pw-src" style="${SS[p.src]||""}">${esc(SL[p.src]||p.src)}</span><span class="pw-time">${esc(p.time||"")}</span></div><a class="pw-link" href="${safeUrl(p.url)}" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>`, {className:"custom-popup", maxWidth:215});
+    m.bindPopup(`<div class="pw"><div class="pw-name">${esc(p.name)}</div><div class="pw-sub">${esc(CN[p.cat]||p.cat)} · ${esc(p.loc||"")}</div><div class="pw-meta"><span class="pw-src" style="${SS[p.src]||""}">${esc(SL[p.src]||p.src)}</span><span class="pw-time">${esc(p.time||"")}</span></div><a class="pw-link" href="${esc(safeUrl(p.url))}" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>`, {className:"custom-popup", maxWidth:215});
     m.on("click", () => selectHomeCard(i));
     homeMarkers.push(m);
     bounds.push([p.lat, p.lng]);
@@ -2232,6 +2250,17 @@ function autoSource(u) {
     .forEach(c => c.classList.remove("on"));
   const el = document.querySelector("#s-add .chip." + src);
   if (el) el.classList.add("on");
+}
+
+// Select the source chip for a known src (tt/ig/fb/wa) so editing/sharing a
+// place preserves its source instead of defaulting to TikTok.
+function setSrcChip(src) {
+  document.querySelectorAll("#s-add .chip.tt, #s-add .chip.ig, #s-add .chip.fb, #s-add .chip.wa")
+    .forEach(c => c.classList.remove("on"));
+  if (["tt","ig","fb","wa"].includes(src)) {
+    const el = document.querySelector("#s-add .chip." + src);
+    if (el) el.classList.add("on");
+  }
 }
 
 function selCat(el, cat) {
@@ -2382,6 +2411,7 @@ function editPlace(id) {
     const pcat = CC[p.cat] ? p.cat : "hike";
     const ce = document.querySelector("#cat-opts .chip." + pcat);
     if (ce) ce.classList.add("on");
+    setSrcChip(p.src);
     // Set lastResult so save works correctly
     lastResult = {lat: p.lat, lng: p.lng, url: p.url || "", emoji: CE[p.cat] || "📍"};
     // Show result card
@@ -2712,7 +2742,7 @@ async function startTrip(active) {
         iconSize:[36,36], iconAnchor:[18,36], popupAnchor:[0,-40], className:""
       })
     }).addTo(tripMap);
-    var popup = '<div class="pw"><div class="pw-name">' + esc(p.name) + '</div><div class="pw-sub">' + esc(CN[p.cat]||p.cat) + ' · ' + esc(p.loc||"") + ' · ' + realDist + ' ק"מ מהמסלול</div><a class="pw-link" href="' + safeUrl(p.url) + '" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>';
+    var popup = '<div class="pw"><div class="pw-name">' + esc(p.name) + '</div><div class="pw-sub">' + esc(CN[p.cat]||p.cat) + ' · ' + esc(p.loc||"") + ' · ' + realDist + ' ק"מ מהמסלול</div><a class="pw-link" href="' + esc(safeUrl(p.url)) + '" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>';
     m.bindPopup(popup, {className:"custom-popup", maxWidth:215});
     m.on("click", function() { activateBSCard(i); });
     tripMarkers.push(m);
@@ -2986,6 +3016,9 @@ function markInstalledDone(){ try{localStorage.setItem("tachanot_installed","1")
 function maybeShowInstall(){
   if (isStandalone() || localStorage.getItem("tachanot_installed")) return;
   if (installDismissals() >= 2) return;
+  // The nudge is for phones (touch). On desktop, beforeinstallprompt also fires,
+  // but we skip the banner there — desktop installs via the help-page button.
+  if (!(window.matchMedia && window.matchMedia("(pointer:coarse)").matches)) return;
   const canAndroid = !!deferredInstall, canIos = isIosSafari();
   if (!canAndroid && !canIos) return;
   const b=document.getElementById("install-banner"); if(!b) return;

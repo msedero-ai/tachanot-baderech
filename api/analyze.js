@@ -25,6 +25,7 @@ let _certs = null, _certsExp = 0;
 async function googleSecureTokenCerts() {
   if (_certs && Date.now() < _certsExp) return _certs;
   const r = await fetchWithTimeout("https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com", {}, 4000);
+  if (!r.ok) throw new Error("certs fetch " + r.status); // don't cache an error body
   _certs = await r.json();
   _certsExp = Date.now() + 55 * 60 * 1000;
   return _certs;
