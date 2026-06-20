@@ -2158,12 +2158,25 @@ function selCat(el, cat) {
   el.classList.add("on");
 }
 
+// Resolve once Firebase has restored the auth session (or after a short timeout).
+// On a fresh load (e.g. opening via share-target) currentUser is briefly null.
+function waitForAuth() {
+  return new Promise(resolve => {
+    if (authResolved || typeof firebase === "undefined") return resolve();
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      if (authResolved || Date.now() - t0 > 4000) { clearInterval(iv); resolve(); }
+    }, 100);
+  });
+}
+
 async function analyzeLink() {
   const url = document.getElementById("url-in").value.trim();
   const extraDesc = (document.getElementById("url-desc")?.value || "").trim();
   if (!url) { document.getElementById("url-in").style.outline="2px solid #E85D3A"; setTimeout(()=>document.getElementById("url-in").style.outline="",1500); return; }
-  // AI recognition ("search") is for signed-in users only — keeps usage tied to
-  // known accounts (and the cost under control).
+  // AI recognition ("search") is for signed-in users only. Wait for auth to be
+  // restored first — otherwise a fresh load (share-target) wrongly looks logged out.
+  await waitForAuth();
   if (!currentUser) {
     if (confirm("כדי לזהות מקום אוטומטית צריך להתחבר עם Google. להתחבר עכשיו?")) signIn();
     return;
