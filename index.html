@@ -1611,21 +1611,17 @@ function signIn() {
   const provider = new firebase.auth.GoogleAuthProvider();
   // Always let the user pick which Google account — needed to switch email.
   provider.setCustomParameters({ prompt: "select_account" });
-  // Only iOS reliably blocks popups (incl. its installed PWAs) and needs redirect.
-  // Everywhere else (desktop + Android, including installed PWAs) popups work and
-  // complete sign-in in place; redirect can fail to return state in a PWA, so we
-  // keep popup-first with a redirect fallback only on actual popup failure.
-  const iOS = /iP(hone|ad|od)/.test(navigator.userAgent);
-  if (iOS) {
-    firebase.auth().signInWithRedirect(provider).catch(err => {
-      console.warn("redirect sign-in failed:", err);
+  // Popup-first on ALL platforms (incl. iOS Safari): the main page stays alive
+  // and receives the result via postMessage, avoiding the full-page cross-site
+  // redirect that Safari/ITP drops (which made iOS sign-in "do nothing").
+  // Fall back to redirect only if the popup itself can't open.
+  firebase.auth().signInWithPopup(provider).catch(err => {
+    console.warn("popup sign-in failed:", err && err.code);
+    if (err && err.code === "auth/popup-closed-by-user") return; // user cancelled
+    firebase.auth().signInWithRedirect(provider).catch(e2 => {
+      console.warn("redirect sign-in failed:", e2);
       toast("ההתחברות נכשלה — נסו שוב");
     });
-    return;
-  }
-  firebase.auth().signInWithPopup(provider).catch(err => {
-    console.warn("popup sign-in failed, falling back to redirect:", err);
-    firebase.auth().signInWithRedirect(provider);
   });
 }
 
