@@ -180,6 +180,23 @@ async function ogMeta(url) {
   } catch (e) { return ""; }
 }
 
+// Geocode a place to coordinates via OpenStreetMap Nominatim (Israel only).
+// LLMs are unreliable at exact coordinates, so we resolve them ourselves.
+async function geocodeIL(query) {
+  if (!query) return null;
+  try {
+    const u = "https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=il&accept-language=he&q=" + encodeURIComponent(query);
+    const r = await fetchWithTimeout(u, { headers: { "User-Agent": "tachanot-baderech/1.0 (https://tachanot-baderech.vercel.app)", "Accept-Language": "he,en" } }, 4500);
+    if (!r.ok) return null;
+    const arr = await r.json();
+    if (Array.isArray(arr) && arr.length) {
+      const la = parseFloat(arr[0].lat), lo = parseFloat(arr[0].lon);
+      if (Number.isFinite(la) && Number.isFinite(lo)) return [la, lo];
+    }
+  } catch (e) {}
+  return null;
+}
+
 async function fetchPageContext(url) {
   if (!url) return "";
   const tasks = [];
@@ -329,13 +346,27 @@ export default async function handler(req, res) {
       res.status(502).json({ ok: false, error: "לא הצלחתי לזהות מהלינק — הוסף/י תיאור קצר (שם המקום/עיר) ונסה/י שוב" });
       return;
     }
-    const lat = Number(raw.lat);
-    const lng = Number(raw.lng);
+    let lat = Number(raw.lat);
+    let lng = Number(raw.lng);
+    const name = String(raw.name || "").trim() || "מקום חדש";
+    const location = String(raw.location || "").trim();
+    // The model often returns a place name but no/garbage coordinates — resolve
+    // them ourselves via Nominatim so the place actually lands on the map.
+    if (!(Number.isFinite(lat) && Number.isFinite(lng))) {
+      const tries = [];
+      if (name && location) tries.push(name + ", " + location);
+      if (location) tries.push(location);
+      if (name) tries.push(name + ", ישראל");
+      for (const q of tries) {
+        const g = await geocodeIL(q);
+        if (g) { lat = g[0]; lng = g[1]; break; }
+      }
+    }
     const conf = Math.max(0, Math.min(100, Math.round(Number(raw.confidence))));
     const result = {
-      name: String(raw.name || "").trim() || "מקום חדש",
+      name,
       category: CATEGORIES.includes(raw.category) ? raw.category : "hike",
-      location: String(raw.location || "").trim(),
+      location,
       description: String(raw.description || "").trim(),
       lat: Number.isFinite(lat) ? lat : null,
       lng: Number.isFinite(lng) ? lng : null,
