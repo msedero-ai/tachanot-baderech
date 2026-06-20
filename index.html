@@ -1478,7 +1478,7 @@ body {
       <button onclick="closeHelp()" style="background:rgba(255,255,255,.2);border:none;color:white;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;line-height:1;">✕</button>
     </div>
     <div style="padding:18px 18px 32px;max-width:560px;margin:0 auto;">
-      <div style="font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:18px;">ראיתם מקום מגניב ברשתות? תחנות בדרך זוכרת אותו בשבילכם — ומזכירה לכם כשאתם נוסעים בקרבת מקום.</div>
+      <div style="font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:18px;">ראיתם מקום מגניב ברשתות? "תחנות בדרך" שומרת אותו בשבילכם, ומראה לכם אילו מהמקומות ששמרתם על המסלול כשאתם נוסעים.</div>
 
       <div class="help-step"><div class="help-em">📍</div><div><div class="help-t">שמירת מקום</div><div class="help-d">ראיתם קפה/טיול/מסעדה בטיקטוק או אינסטגרם? העתיקו את הלינק, הדביקו במסך <b>הוסף תחנה</b> (כפתור ＋), וה-AI יזהה את המקום וישמור אותו על המפה — אפשר גם להוסיף תיאור אם המקום לא זוהה.</div></div></div>
 
@@ -1639,7 +1639,7 @@ function closeHelp() {
 
 function shareApp() {
   const url = location.origin + "/";
-  const pitch = "חבר'ה, גיליתי אפליקציה ששווה! 🚗 שומרים מקומות מטיקטוק ואינסטגרם, והיא מזכירה לכם אותם בדיוק כשאתם נוסעים לידם. בואו תנסו, חינם 👇";
+  const pitch = "ראיתם מקום מגניב ברשתות 👀? \"תחנות בדרך\" שומרת אותו, ומראה לכם אילו מהמקומות ששמרתם על המסלול כשאתם נוסעים 🚗";
   const message = pitch + "\n" + url;
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   if (isMobile && navigator.share) {
