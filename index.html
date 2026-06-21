@@ -2377,10 +2377,10 @@ function showResult(r, url) {
     if (notice) notice.style.display = "none";
   }
 
-  // אם הקואורדינטות חסרות/לא מדויקות — geocode אוטומטי לפי המיקום (גיבוי לשרת)
+  // geocode אוטומטי רק כשאין קואורדינטות מהשרת — השרת כבר מאתר לפי כתובת מלאה,
+  // ואין לדרוס את התוצאה הטובה שלו ב-geocode חלש לפי עיר בלבד.
   const noCoords = !(typeof r.lat === "number" && isFinite(r.lat) && typeof r.lng === "number" && isFinite(r.lng));
-  const isDefaultCoords = !noCoords && (Math.abs(r.lat - 32.08) < 0.1 && Math.abs(r.lng - 34.78) < 0.1);
-  if (noCoords || isDefaultCoords || r.confidence < 60) {
+  if (noCoords) {
     setTimeout(() => geocodeLocation(), 300);
   }
 }

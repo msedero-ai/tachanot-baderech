@@ -82,12 +82,14 @@ confidence (היה כן):
   "name": "שם המקום בעברית",
   "category": "אחת מ: hike, coffee, food, view, beach, art",
   "location": "שם המקום + עיר/אזור בישראל",
+  "address": "כתובת מלאה ככל האפשר לאיתור מדויק על המפה: רחוב + מספר + עיר. השתמש בחיפוש גוגל כדי למצוא את הכתובת המדויקת. אם אין כתובת רחוב — שם העסק + עיר.",
   "description": "תיאור קצר, משפט או שניים",
   "lat": מספר קו רוחב (ישראל ~29.5 עד 33.3),
   "lng": מספר קו אורך (ישראל ~34.2 עד 35.9),
   "confidence": מספר שלם 0-100,
   "emoji": "אמוג'י אחד שמתאים"
 }
+חשוב: שדה "address" קריטי לאיתור על המפה — חפש בגוגל את הכתובת המלאה (רחוב ומספר) של העסק.
 קטגוריות: hike (טיול/טבע), coffee (בית קפה), food (מסעדה/אוכל), view (תצפית), beach (חוף), art (אמנות/תרבות).`;
 
 function fetchWithTimeout(url, opts, ms) {
@@ -187,7 +189,7 @@ async function geocodeIL(query) {
   if (!query) return null;
   try {
     const u = "https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=il&accept-language=he&q=" + encodeURIComponent(query);
-    const r = await fetchWithTimeout(u, { headers: { "User-Agent": "tachanot-baderech/1.0 (https://tachanot-baderech.vercel.app)", "Accept-Language": "he,en" } }, 4500);
+    const r = await fetchWithTimeout(u, { headers: { "User-Agent": "tachanot-baderech/1.0 (https://tachanot-baderech.vercel.app)", "Accept-Language": "he,en" } }, 3500);
     if (!r.ok) return null;
     const arr = await r.json();
     if (Array.isArray(arr) && arr.length) {
@@ -201,11 +203,13 @@ async function geocodeIL(query) {
 async function fetchPageContext(url) {
   if (!url) return "";
   const tasks = [];
-  if (/tiktok\.com/i.test(url)) tasks.push(tiktokOembed(url).catch(() => ""));
-  // Skip scraping Instagram/Facebook/TikTok pages directly — they're login-walled
-  // and slow; rely on oEmbed (TikTok) + Gemini's tools. og:meta only helps for
-  // other sites (blogs, Google Maps links, etc.) and is usually fast there.
-  if (!/instagram\.com|instagr\.am|facebook\.com|fb\.com|fb\.watch|fb\.me|tiktok\.com/i.test(url)) {
+  if (/tiktok\.com/i.test(url)) {
+    tasks.push(tiktokOembed(url).catch(() => "")); // TikTok: oEmbed gives the caption
+  } else {
+    // Everything else — INCLUDING Instagram/Facebook — try og:meta. IG/FB are
+    // login-walled for humans but often still serve og:title/og:description (the
+    // post caption) to crawlers via the facebookexternalhit User-Agent, which
+    // frequently contains the place name. Degrades to "" if blocked.
     tasks.push(ogMeta(url).catch(() => ""));
   }
   if (!tasks.length) return "";
@@ -351,17 +355,23 @@ export default async function handler(req, res) {
     let lng = Number(raw.lng);
     const name = String(raw.name || "").trim() || "מקום חדש";
     const location = String(raw.location || "").trim();
-    // The model often returns a place name but no/garbage coordinates — resolve
-    // them ourselves via Nominatim so the place actually lands on the map.
-    if (!(Number.isFinite(lat) && Number.isFinite(lng))) {
-      const tries = [];
+    const address = String(raw.address || "").trim();
+    const hasGem = Number.isFinite(lat) && Number.isFinite(lng);
+    // Resolve coordinates ourselves. PREFER geocoding the full street address
+    // (a real address beats the model's guessed coords for accuracy); fall back
+    // to the model's coords, then to name/city, so a place lands on the map
+    // without the user having to re-search the location.
+    const tries = [];
+    if (address) tries.push(address);
+    if (address && location && !address.includes(location)) tries.push(address + ", " + location);
+    if (!hasGem) {
       if (name && location) tries.push(name + ", " + location);
       if (location) tries.push(location);
       if (name) tries.push(name + ", ישראל");
-      for (const q of tries) {
-        const g = await geocodeIL(q);
-        if (g) { lat = g[0]; lng = g[1]; break; }
-      }
+    }
+    for (const q of tries.slice(0, 3)) { // cap attempts to stay within maxDuration
+      const g = await geocodeIL(q);
+      if (g) { lat = g[0]; lng = g[1]; break; }
     }
     const conf = Math.max(0, Math.min(100, Math.round(Number(raw.confidence))));
     const result = {
