@@ -1672,7 +1672,17 @@ function closeHelp() {
   if (o) o.style.display = "none";
 }
 
+// Log an app-share event (so the dashboard can separate app shares from place
+// shares). Stored in the same `shares` collection with type:"app" — no rules
+// change needed. Only when signed in (rules require auth).
+function logAppShare() {
+  if (!db || !currentUser) return;
+  db.collection("shares").add({ type: "app", uid: currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() })
+    .catch(e => console.warn("app-share log failed:", e));
+}
+
 function shareApp() {
+  logAppShare();
   const url = location.origin + "/";
   const pitch = "ראיתם מקום מגניב בטיקטוק/אינסטגרם 👀? משתפים אותו ל\"תחנות בדרך\", והיא שומרת אותו ומראה לכם אותו על המסלול כשאתם נוסעים 🚗";
   const message = pitch + "\n" + url;
@@ -1717,7 +1727,7 @@ function sharePlace(id) {
     const code = shareCode();
     link = location.origin + "/?p=" + code;
     db.collection("shares").doc(code).set(
-      Object.assign({}, payload, { uid: currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() })
+      Object.assign({}, payload, { type: "place", uid: currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() })
     ).catch(e => console.warn("share save failed:", e));
   } else {
     // Signed out: encode the place in the link itself (longer, but no backend).
@@ -1944,9 +1954,13 @@ async function loadAdminStats() {
     // include uids that have places but no user doc (signed in before we tracked users)
     Object.keys(perUid).forEach(uid => { if (!rows.find(r => r.uid === uid)) rows.push({ uid, email: "(משתמש ישן)", lastSeen: null, count: perUid[uid] }); });
     rows.sort((a, b) => b.count - a.count);
+    // Split shares: type:"app" = app shares; everything else (place-share docs,
+    // incl. legacy docs without a type field) = place shares.
+    let appShares = 0, placeShares = 0;
+    sharesSnap.forEach(d => { if ((d.data() || {}).type === "app") appShares++; else placeShares++; });
     const fmt = ts => (ts && ts.toDate) ? ts.toDate().toLocaleDateString("he-IL") : "—";
-    const stat = (v, l) => `<div style="flex:1;background:var(--surface2);border-radius:12px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:900;color:var(--brand);">${v}</div><div style="font-size:11px;color:var(--text2);">${l}</div></div>`;
-    let html = `<div style="display:flex;gap:9px;margin-bottom:16px;">${stat(rows.length, "משתמשים")}${stat(placesSnap.size, "מקומות")}${stat(sharesSnap.size, "שיתופים")}</div>`;
+    const stat = (v, l) => `<div style="flex:1 1 calc(50% - 5px);background:var(--surface2);border-radius:12px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:900;color:var(--brand);">${v}</div><div style="font-size:11px;color:var(--text2);">${l}</div></div>`;
+    let html = `<div style="display:flex;flex-wrap:wrap;gap:9px;margin-bottom:16px;">${stat(rows.length, "משתמשים")}${stat(placesSnap.size, "מקומות")}${stat(placeShares, "שיתופי מקום")}${stat(appShares, "שיתופי אפליקציה")}</div>`;
     html += `<div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:8px;">לפי משתמש</div>`;
     html += rows.map(r => `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);"><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;word-break:break-all;">${esc(r.email)}</div><div style="font-size:11px;color:var(--text3);">כניסה אחרונה: ${fmt(r.lastSeen)}</div></div><div style="font-size:15px;font-weight:800;color:var(--brand);flex-shrink:0;">${r.count}</div></div>`).join("") || '<div style="color:var(--text2);font-size:13px;">אין נתונים עדיין.</div>';
     el.innerHTML = html;
