@@ -1911,8 +1911,8 @@ function updateAuthUI() {
 }
 
 // ── ADMIN (owner-only dashboard; data access also enforced by Firestore rules) ──
-const OWNER_EMAIL = "msedero@gmail.com";
-function isOwner() { return !!(currentUser && currentUser.email === OWNER_EMAIL); }
+const ADMIN_EMAILS = ["msedero@gmail.com", "galisedero@gmail.com"];
+function isOwner() { return !!(currentUser && ADMIN_EMAILS.includes(currentUser.email)); }
 
 // Record each signed-in user (email + last seen) so the dashboard can list them.
 function upsertUserDoc(user) {
