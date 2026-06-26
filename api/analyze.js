@@ -200,6 +200,23 @@ async function geocodeIL(query) {
   return null;
 }
 
+// Geocode via Google (much better for Israeli addresses & businesses than OSM).
+// Active only when GOOGLE_MAPS_API_KEY is set; returns null otherwise.
+async function geocodeGoogle(query) {
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key || !query) return null;
+  try {
+    const u = "https://maps.googleapis.com/maps/api/geocode/json?region=il&language=he&key=" +
+      encodeURIComponent(key) + "&address=" + encodeURIComponent(query);
+    const r = await fetchWithTimeout(u, {}, 3500);
+    if (!r.ok) return null;
+    const j = await r.json();
+    const loc = j && j.status === "OK" && j.results && j.results[0] && j.results[0].geometry && j.results[0].geometry.location;
+    if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) return [loc.lat, loc.lng];
+  } catch (e) {}
+  return null;
+}
+
 async function fetchPageContext(url) {
   if (!url) return "";
   const tasks = [];
@@ -369,8 +386,12 @@ export default async function handler(req, res) {
       if (location) tries.push(location);
       if (name) tries.push(name + ", ישראל");
     }
+    // Use Google when a key is configured (reliable for Israel); otherwise OSM.
+    // Don't mix — OSM returns confidently-wrong results, so we'd rather have no
+    // coords (manual entry) than a bad fallback when Google is available.
+    const useGoogle = !!process.env.GOOGLE_MAPS_API_KEY;
     for (const q of tries.slice(0, 3)) { // cap attempts to stay within maxDuration
-      const g = await geocodeIL(q);
+      const g = useGoogle ? await geocodeGoogle(q) : await geocodeIL(q);
       if (g) { lat = g[0]; lng = g[1]; break; }
     }
     const conf = Math.max(0, Math.min(100, Math.round(Number(raw.confidence))));
