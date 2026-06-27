@@ -1592,6 +1592,8 @@ let tripMap = null;
 let tripMarkers = [];
 let homeMap = null;
 let homeMarkers = [];
+let homeInitView = false;  // centered the home map on the user once this session
+let homeMeMarker = null;   // "you are here" marker on the home map
 let bsExp = false;
 let lastResult = null;
 let myLocation = null;
@@ -2230,8 +2232,29 @@ function _renderHomeMap() {
     homeMarkers.push(m);
     bounds.extend(pos); nb++;
   });
-  if (nb === 1) { homeMap.setCenter(bounds.getCenter()); homeMap.setZoom(14); }
-  else if (nb > 1) homeMap.fitBounds(bounds, 80);
+  function fitPlaces(){
+    if (nb === 1) { homeMap.setCenter(bounds.getCenter()); homeMap.setZoom(14); }
+    else if (nb > 1) homeMap.fitBounds(bounds, 80);
+  }
+  const filterActive = (homeCatFilter !== "all") || !!(homeTextFilter && homeTextFilter.trim());
+  if (filterActive) {
+    // Filtering → frame the matching results.
+    fitPlaces();
+  } else if (!homeInitView) {
+    // First open (no filter): center on the user's current location — great when
+    // abroad. Show the places as a base while locating; fall back to them if the
+    // user denies/has no location. Later unfiltered re-renders keep the view.
+    homeInitView = true;
+    fitPlaces();
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function(pos){
+        var ll = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+        homeMap.setCenter(ll); homeMap.setZoom(13);
+        if (!homeMeMarker) homeMeMarker = new google.maps.Marker({ position: ll, map: homeMap, icon: mkIcon("#1A73E8","",16), title: "המיקום שלי", zIndex: 999 });
+        else homeMeMarker.setPosition(ll);
+      }, function(){}, { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 });
+    }
+  }
   // Build cards
   const cardsEl = document.getElementById("home-cards");
   if (!cardsEl) return;
