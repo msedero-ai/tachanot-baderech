@@ -1166,8 +1166,8 @@ body {
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
           <div onclick="openHelp()" title="איך זה עובד" style="width:40px;height:40px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;flex-shrink:0;color:var(--text2);font-weight:800;">?</div>
           <div onclick="toggleTheme()" id="theme-btn" style="width:40px;height:40px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;flex-shrink:0;">🌙</div>
-          <div style="flex:1;background:var(--surface2);border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:9px;border:1px solid var(--border);">
-            <span style="font-size:16px;color:var(--text3);">🔍</span>
+          <div style="flex:1;min-width:0;background:var(--surface2);border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:9px;border:1px solid var(--border);">
+            <span style="font-size:16px;color:var(--text3);flex-shrink:0;">🔍</span>
             <input id="home-search" type="text" oninput="filterHomeText(this.value)" placeholder="חיפוש..." style="flex:1;min-width:0;border:none;background:none;outline:none;font-family:Heebo,sans-serif;font-size:16px;color:var(--text);">
             <span id="hs-count" style="font-size:12px;font-weight:700;background:var(--brand);color:white;padding:2px 9px;border-radius:20px;">0</span>
           </div>
