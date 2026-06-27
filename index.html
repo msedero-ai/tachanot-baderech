@@ -1580,6 +1580,8 @@ function idStr(v){return String(v==null?"":v).replace(/[^A-Za-z0-9_-]/g,"");}
 // Real Google Maps driving-directions link (from the user's location to the place).
 // Opens the Google Maps app on mobile; the web directions on desktop.
 function navUrl(p){ return "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(p.lat + "," + p.lng); }
+// Waze navigation deep link (dominant in Israel). Opens the Waze app to navigate.
+function wazeUrl(p){ return "https://waze.com/ul?ll=" + encodeURIComponent(p.lat + "," + p.lng) + "&navigate=yes"; }
 
 // ── STATE ──
 let places = [];
@@ -2223,7 +2225,7 @@ function _renderHomeMap() {
     if (!p.lat || !p.lng) { homeMarkers.push(null); return; }
     const pos = {lat: p.lat, lng: p.lng};
     const m = new google.maps.Marker({ position: pos, map: homeMap, icon: mkIcon(CC[p.cat]||"#2C6E5A", CE[p.cat]||"📍", 38) });
-    m._popup = `<div class="pw"><div class="pw-name">${esc(p.name)}</div><div class="pw-sub">${esc(CN[p.cat]||p.cat)} · ${esc(p.loc||"")}</div><div class="pw-meta"><span class="pw-src" style="${SS[p.src]||""}">${esc(SL[p.src]||p.src)}</span><span class="pw-time">${esc(p.time||"")}</span></div><a class="pw-link" href="${navUrl(p)}" target="_blank">🧭 נווט בגוגל מפות ←</a><a class="pw-link" href="${esc(safeUrl(p.url))}" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>`;
+    m._popup = `<div class="pw"><div class="pw-name">${esc(p.name)}</div><div class="pw-sub">${esc(CN[p.cat]||p.cat)} · ${esc(p.loc||"")}</div><div class="pw-meta"><span class="pw-src" style="${SS[p.src]||""}">${esc(SL[p.src]||p.src)}</span><span class="pw-time">${esc(p.time||"")}</span></div><a class="pw-link" href="${navUrl(p)}" target="_blank">🧭 נווט בגוגל מפות ←</a><a class="pw-link" href="${wazeUrl(p)}" target="_blank">🚗 נווט ב-Waze ←</a><a class="pw-link" href="${esc(safeUrl(p.url))}" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>`;
     m.addListener("click", () => selectHomeCard(i));
     homeMarkers.push(m);
     bounds.extend(pos); nb++;
@@ -2249,7 +2251,7 @@ function _renderHomeMap() {
         <span class="hc-src src-${esc(p.src||"oth")}">${esc(SL[p.src]||SL.oth)}</span>
         <button onclick="event.stopPropagation();sharePlace('${idStr(p.id)}')" style="background:none;border:none;color:var(--brand);cursor:pointer;font-size:11px;font-weight:700;padding:2px 6px;margin-right:auto;font-family:Heebo,sans-serif;">📤 שתף</button>
         <button onclick="event.stopPropagation();editPlace('${idStr(p.id)}')" style="background:none;border:none;color:var(--brand);cursor:pointer;font-size:11px;font-weight:700;padding:2px 6px;font-family:Heebo,sans-serif;">✏️ ערוך</button>
-      </div>`;
+      </div>${(p.lat&&p.lng)?`<div style="display:flex;gap:6px;margin-top:9px;"><a href="${navUrl(p)}" target="_blank" onclick="event.stopPropagation()" style="flex:1;text-align:center;background:var(--brand);color:#fff;border-radius:9px;padding:7px 0;font-size:12px;font-weight:700;text-decoration:none;">🧭 Maps</a><a href="${wazeUrl(p)}" target="_blank" onclick="event.stopPropagation()" style="flex:1;text-align:center;background:#33CCFF;color:#fff;border-radius:9px;padding:7px 0;font-size:12px;font-weight:700;text-decoration:none;">🚗 Waze</a></div>`:""}`;
     c.onclick = () => selectHomeCard(i);
     cardsEl.appendChild(c);
   });
@@ -2832,7 +2834,7 @@ async function startTrip(active) {
     var emoji = CE[p.cat] || "📍";
     var realDist = routeLatLngs.length > 0 ? Math.round(minDistToRoute(p.lat, p.lng, routeLatLngs)*10)/10 : "?";
     var m = new google.maps.Marker({ position:{lat:p.lat, lng:p.lng}, map:tripMap, icon: mkIcon(color, emoji, 36) });
-    m._popup = '<div class="pw"><div class="pw-name">' + esc(p.name) + '</div><div class="pw-sub">' + esc(CN[p.cat]||p.cat) + ' · ' + esc(p.loc||"") + ' · ' + realDist + ' ק"מ מהמסלול</div><a class="pw-link" href="' + navUrl(p) + '" target="_blank">🧭 נווט בגוגל מפות ←</a><a class="pw-link" href="' + esc(safeUrl(p.url)) + '" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>';
+    m._popup = '<div class="pw"><div class="pw-name">' + esc(p.name) + '</div><div class="pw-sub">' + esc(CN[p.cat]||p.cat) + ' · ' + esc(p.loc||"") + ' · ' + realDist + ' ק"מ מהמסלול</div><a class="pw-link" href="' + navUrl(p) + '" target="_blank">🧭 נווט בגוגל מפות ←</a><a class="pw-link" href="' + wazeUrl(p) + '" target="_blank">🚗 נווט ב-Waze ←</a><a class="pw-link" href="' + esc(safeUrl(p.url)) + '" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>';
     m.addListener("click", function() { activateBSCard(i); });
     tripMarkers.push(m);
   });
