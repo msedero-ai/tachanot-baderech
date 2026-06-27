@@ -1208,7 +1208,7 @@ body {
         <div class="add-hero">
           <div class="ah-icon">✨</div>
           <div class="ah-title">הוסף תחנה</div>
-          <div class="ah-sub">הדביקו לינק מאינסטגרם או טיקטוק<br>וה-AI יזהה את המקום אוטומטית</div>
+          <div class="ah-sub">העתיקו קישור מאינסטגרם/טיקטוק<br>ולחצו 📋 — וה-AI יזהה את המקום אוטומטית</div>
         </div>
         <div class="card">
           <div class="card-lbl">לינק למקום</div>
@@ -1217,6 +1217,8 @@ body {
             <input class="url-in" id="url-in" type="url" placeholder="הדבק לינק כאן...">
             <button onclick="document.getElementById('url-in').value=''" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px;">✕</button>
           </div>
+          <button onclick="pasteLink()" style="width:100%;margin-top:12px;padding:14px;background:var(--brand);border:none;border-radius:12px;color:#fff;font-family:'Heebo',sans-serif;font-size:16px;font-weight:800;cursor:pointer;">📋 הדבק קישור והוסף</button>
+          <div style="font-size:12px;color:var(--text3);margin-top:8px;text-align:center;line-height:1.6;">באינסטגרם: שתף ↗ → <b>העתק קישור</b><br>אחר כך חזרו לכאן ולחצו 📋</div>
         </div>
 
         <div class="card" style="border:1.5px solid var(--brand);background:var(--brand-pale);">
@@ -1511,7 +1513,12 @@ body {
 
       <div class="help-step"><div class="help-em">📍</div><div><div class="help-t">שמירת מקום</div><div class="help-d">ראיתם קפה/טיול/מסעדה בטיקטוק או אינסטגרם? העתיקו את הלינק, הדביקו במסך <b>הוסף תחנה</b> (כפתור ＋), וה-AI יזהה את המקום וישמור אותו על המפה — אפשר גם להוסיף תיאור אם המקום לא זוהה.</div></div></div>
 
-      <div class="help-step"><div class="help-em">📲</div><div><div class="help-t">הוספת מקום מהרשתות</div><div class="help-d"><b>אנדרואיד:</b> לחצו <b>שיתוף</b> על הפוסט ובחרו "תחנות בדרך" — הוא ייפתח עם הלינק מוכן. <b>אייפון:</b> העתיקו את הלינק של הפוסט, פתחו את האפליקציה והדביקו במסך <b>הוסף תחנה</b> — זהו. (למתקדמים: אפשר להגדיר קיצור (Shortcut) של אפל שמוסיף את האפליקציה לתפריט השיתוף גם באייפון — ראו למטה.)</div></div></div>
+      <div class="help-step"><div class="help-em">📋</div><div><div class="help-t">הדרך הכי קלה: העתק והדבק</div><div class="help-d">עובד בכל מכשיר (אנדרואיד ואייפון), בלי הגדרות:<br><b>1.</b> בפוסט באינסטגרם/טיקטוק לחצו <b>שיתוף ↗</b> ואז <b>"העתק קישור"</b> (Copy link).<br><b>2.</b> פתחו את "בדרך" → כפתור <b>＋</b> → לחצו <b>📋 הדבק קישור והוסף</b>.<br>זהו — ה-AI מזהה ושומר אוטומטית. ✨</div></div></div>
+
+      <details class="help-details">
+        <summary>📲 בונוס (אנדרואיד): שיתוף ישיר מתפריט השיתוף</summary>
+        <div style="font-size:13px;color:var(--text2);line-height:1.7;padding:4px 2px;">אם האפליקציה <b>מותקנת</b> (לא רק קיצור), לפעמים "תחנות בדרך" תופיע ישירות בתפריט ה<b>שיתוף</b> של אינסטגרם — בחרו בה והלינק ייפתח מוכן. זה לא עובד בכל מכשיר ותלוי בגרסת אנדרואיד, אז אם לא רואים אותה שם — פשוט השתמשו בהעתק־הדבק למעלה, זה תמיד עובד.</div>
+      </details>
 
       <details class="help-details">
         <summary>📲 למתקדמים (אייפון): הוספת "תחנות בדרך" לתפריט השיתוף</summary>
@@ -2295,6 +2302,38 @@ function waitForAuth() {
       if (authResolved || Date.now() - t0 > 4000) { clearInterval(iv); resolve(); }
     }, 100);
   });
+}
+
+// Pull the first URL out of arbitrary clipboard text. Instagram/TikTok
+// "Copy link" yields a clean URL, but tolerate trailing text and bare domains.
+function extractFirstUrl(text) {
+  if (!text) return "";
+  const m = String(text).match(/https?:\/\/[^\s'"<>]+/i);
+  if (m) return m[0].trim();
+  const m2 = String(text).match(/(?:[\w-]+\.)+[a-z]{2,}\/[^\s'"<>]*/i);
+  return m2 ? "https://" + m2[0].trim() : "";
+}
+
+// Primary "easy path": read a copied link straight from the clipboard, fill the
+// field, and kick off recognition — no manual typing, no Android share-target.
+async function pasteLink() {
+  let text = "";
+  try {
+    text = await navigator.clipboard.readText();
+  } catch (e) {
+    document.getElementById("url-in").focus();
+    toast("לא הצלחתי לקרוא מהלוח — הדביקו ידנית בשדה הקישור (לחיצה ארוכה → הדבק)");
+    return;
+  }
+  const url = extractFirstUrl(text);
+  if (!url) {
+    document.getElementById("url-in").focus();
+    toast("לא נמצא קישור בלוח — העתיקו קודם קישור מאינסטגרם/טיקטוק");
+    return;
+  }
+  document.getElementById("url-in").value = url;
+  autoSource(url);
+  analyzeLink();
 }
 
 async function analyzeLink() {
