@@ -2461,23 +2461,30 @@ async function geocodeLocation() {
   btn.textContent = "⏳";
   btn.disabled = true;
   status.style.display = "block";
+  status.style.color = "";
   status.textContent = "מחפש...";
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc)}&format=json&limit=3&accept-language=he,en&countrycodes=il`);
+    // Use the server's Google geocoder (same engine as the auto path), NOT
+    // client-side Nominatim — OSM returns confidently-wrong results for Israel
+    // and would overwrite good coords with garbage.
+    let idToken = "";
+    try { idToken = await firebase.auth().currentUser.getIdToken(); } catch (e) {}
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
+      body: JSON.stringify({ geocode: loc }),
+    });
     const data = await res.json();
-    if (data && data.length > 0) {
-      const lat = parseFloat(data[0].lat);
-      const lng = parseFloat(data[0].lon);
-      if (lastResult) {
-        lastResult.lat = lat;
-        lastResult.lng = lng;
-      } else {
-        lastResult = {lat, lng, url:""};
-      }
-      status.textContent = `✅ נמצא: ${data[0].display_name.split(",").slice(0,2).join(",")}`;
+    if (data.ok && data.found && typeof data.lat === "number" && typeof data.lng === "number") {
+      if (lastResult) { lastResult.lat = data.lat; lastResult.lng = data.lng; }
+      else lastResult = { lat: data.lat, lng: data.lng, url: "" };
+      status.textContent = `✅ המיקום נמצא: ${loc}`;
       status.style.color = "var(--brand)";
+    } else if (data.ok) {
+      status.textContent = "לא נמצא — נסה להוסיף עיר, או הזן קואורדינטות ידנית";
+      status.style.color = "var(--accent)";
     } else {
-      status.textContent = "לא נמצא — הזן קואורדינטות ידנית";
+      status.textContent = data.error || "לא נמצא";
       status.style.color = "var(--accent)";
     }
   } catch(e) {

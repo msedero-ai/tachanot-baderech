@@ -262,6 +262,19 @@ export default async function handler(req, res) {
     return;
   }
 
+  // Geocode-only mode: the manual "📍 מצא" button sends { geocode: "<query>" }
+  // to resolve coordinates with the SAME engine as the auto path (Google when
+  // configured), instead of the weak client-side Nominatim that returns
+  // confidently-wrong results for Israel. Auth + same-origin already passed.
+  if (req.body && req.body.geocode != null) {
+    const q = String(req.body.geocode).trim().slice(0, 300);
+    if (!q) { res.status(400).json({ ok: false, error: "חסר מיקום לחיפוש" }); return; }
+    const g = process.env.GOOGLE_MAPS_API_KEY ? await geocodeGoogle(q) : await geocodeIL(q);
+    if (g) res.status(200).json({ ok: true, found: true, lat: g[0], lng: g[1] });
+    else res.status(200).json({ ok: true, found: false });
+    return;
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     res.status(500).json({ ok: false, error: "GEMINI_API_KEY חסר בהגדרות השרת" });
