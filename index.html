@@ -1643,27 +1643,12 @@ function signIn() {
   const provider = new firebase.auth.GoogleAuthProvider();
   // Always let the user pick which Google account — needed to switch email.
   provider.setCustomParameters({ prompt: "select_account" });
-  const ua = navigator.userAgent || "";
-  const isIOS = /iP(hone|ad|od)/.test(ua) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const isStandalone =
-    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
-    window.navigator.standalone === true;
-  // Installed PWA on Android (standalone, non-iOS): popups are BLOCKED in the
-  // WebAPK context, so signInWithPopup fails ("התחברות נכשלה"). Go straight to
-  // redirect there — it works with the firebaseapp.com authDomain and completes
-  // via getRedirectResult on return. iOS PWA keeps popup (redirect loses state
-  // under Safari/ITP). Browser tabs (all platforms) keep popup.
-  if (isStandalone && !isIOS) {
-    firebase.auth().signInWithRedirect(provider).catch(err => {
-      console.warn("redirect sign-in failed:", err);
-      toast("ההתחברות נכשלה — נסו שוב");
-    });
-    return;
-  }
-  // Popup-first elsewhere (incl. iOS Safari): the main page stays alive and
-  // receives the result via postMessage, avoiding the full-page cross-site
-  // redirect that Safari/ITP drops (which made iOS sign-in "do nothing").
+  // Popup-first on ALL platforms (incl. iOS Safari AND installed Android PWAs):
+  // the main page stays alive and receives the result via postMessage. This
+  // avoids the full-page cross-site redirect to firebaseapp.com, which neither
+  // iOS Safari (ITP) nor an installed PWA can read back afterwards (partitioned
+  // third-party storage) — there, signInWithRedirect lets you pick an account
+  // but then "does nothing" because getRedirectResult comes back empty.
   // Fall back to redirect only if the popup itself can't open.
   firebase.auth().signInWithPopup(provider).catch(err => {
     console.warn("popup sign-in failed:", err && err.code);
