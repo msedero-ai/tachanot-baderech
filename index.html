@@ -1164,14 +1164,14 @@ body {
       <!-- TOP BAR -->
       <div style="background:var(--surface);padding:10px 12px 8px;border-bottom:1px solid var(--border);flex-shrink:0;z-index:10;">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-          <div style="flex:1;background:var(--surface2);border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:9px;border:1px solid var(--border);">
-            <span style="font-size:16px;color:var(--text3);">🔍</span>
-            <input id="home-search" type="text" oninput="filterHomeText(this.value)" placeholder="חיפוש תחנה לפי שם או עיר..." style="flex:1;min-width:0;border:none;background:none;outline:none;font-family:Heebo,sans-serif;font-size:16px;color:var(--text);">
-            <span id="hs-count" style="font-size:12px;font-weight:700;background:var(--brand);color:white;padding:2px 9px;border-radius:20px;">0</span>
-          </div>
-          <div onclick="pasteLink()" title="הדבק קישור מאינסטגרם" style="height:40px;background:var(--brand);border-radius:12px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:14px;font-weight:800;color:#fff;cursor:pointer;flex-shrink:0;padding:0 12px;">📋 הדבק</div>
           <div onclick="openHelp()" title="איך זה עובד" style="width:40px;height:40px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;flex-shrink:0;color:var(--text2);font-weight:800;">?</div>
           <div onclick="toggleTheme()" id="theme-btn" style="width:40px;height:40px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;flex-shrink:0;">🌙</div>
+          <div style="flex:1;background:var(--surface2);border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:9px;border:1px solid var(--border);">
+            <span style="font-size:16px;color:var(--text3);">🔍</span>
+            <input id="home-search" type="text" oninput="filterHomeText(this.value)" placeholder="חיפוש..." style="flex:1;min-width:0;border:none;background:none;outline:none;font-family:Heebo,sans-serif;font-size:16px;color:var(--text);">
+            <span id="hs-count" style="font-size:12px;font-weight:700;background:var(--brand);color:white;padding:2px 9px;border-radius:20px;">0</span>
+          </div>
+          <div onclick="pasteLink()" title="הדבק קישור מאינסטגרם" style="height:40px;background:var(--brand);border-radius:12px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:14px;font-weight:800;color:#fff;cursor:pointer;flex-shrink:0;padding:0 13px;">📋 הדבק</div>
         </div>
         <div class="hscroll" style="display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;">
           <div class="hcat on all"    onclick="filterHomeCat(this,'all')">🗺️ הכל</div>
