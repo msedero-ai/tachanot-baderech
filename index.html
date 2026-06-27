@@ -2396,9 +2396,16 @@ function showResult(r, url) {
 
   // geocode אוטומטי רק כשאין קואורדינטות מהשרת — השרת כבר מאתר לפי כתובת מלאה,
   // ואין לדרוס את התוצאה הטובה שלו ב-geocode חלש לפי עיר בלבד.
+  const status = document.getElementById("geo-status");
   const noCoords = !(typeof r.lat === "number" && isFinite(r.lat) && typeof r.lng === "number" && isFinite(r.lng));
   if (noCoords) {
     setTimeout(() => geocodeLocation(), 300);
+  } else if (status) {
+    // השרת (Google) כבר איתר את המיקום — הצג אישור מיידי כדי שלא ייראה
+    // כאילו צריך עוד ללחוץ "מצא". המשתמש יכול לשמור ישר.
+    status.style.display = "block";
+    status.style.color = "var(--brand)";
+    status.textContent = r.location ? `✅ המיקום נמצא: ${r.location}` : "✅ המיקום נמצא — אפשר לשמור";
   }
 }
 
