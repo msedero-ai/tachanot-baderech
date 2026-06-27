@@ -1596,6 +1596,38 @@ let myLocLabel = "";
 let fromIsMyLoc = false;
 let tripGeoWatch = null;
 let meMarker = null;
+let tripRoute = null;      // Google Maps polyline for the current route
+let tripPins = [];         // from/to pin markers
+let gInfo = null;          // shared InfoWindow for place popups
+
+// Google Maps loads async; queue any map work until its callback fires.
+window.__mq = window.__mq || [];
+window.__onMapsReady = function(){
+  window._mapsReady = true;
+  var q = window.__mq; window.__mq = [];
+  q.forEach(function(f){ try { f(); } catch(e){ console.warn("maps init", e); } });
+};
+function whenMaps(fn){
+  if (window._mapsReady && window.google && window.google.maps) fn();
+  else window.__mq.push(fn);
+}
+function gInfoWindow(){ if (!gInfo && window.google) gInfo = new google.maps.InfoWindow({ maxWidth: 230 }); return gInfo; }
+// Marker icon: colored circle + emoji/label as an SVG data-URI (no extra libs/mapId).
+function mkIcon(bg, label, size, textColor){
+  size = size || 38;
+  var b = 3, r = size/2 - b, fs = Math.round(size*0.46);
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'
+    + '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+r+'" fill="'+bg+'" stroke="#ffffff" stroke-width="'+b+'"/>'
+    + '<text x="'+(size/2)+'" y="'+(size/2)+'" text-anchor="middle" dominant-baseline="central" font-size="'+fs+'" font-weight="700" fill="'+(textColor||"#000")+'" font-family="Arial,Helvetica,sans-serif">'+label+'</text></svg>';
+  return { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
+           scaledSize: new google.maps.Size(size, size), anchor: new google.maps.Point(size/2, size/2) };
+}
+function gMapOpts(center, zoom){
+  return { center: center, zoom: zoom, minZoom: 7, maxZoom: 18,
+    disableDefaultUI: true, zoomControl: true,
+    zoomControlOptions: { position: google.maps.ControlPosition.LEFT_TOP },
+    gestureHandling: "greedy", clickableIcons: false };
+}
 
 const routeCoords = [[32.085,34.782],[32.165,34.820],[32.260,34.860],[32.350,34.875],[32.440,34.895],[32.500,34.893],[32.570,34.920],[32.618,34.948],[32.690,34.970],[32.745,34.990],[32.819,34.989]];
 
@@ -2137,7 +2169,7 @@ function goTo(screen) {
   const navMap = {home:"ni-home", add:"ni-home", trip:"ni-trip", profile:"ni-profile", saved:"ni-saved"};
   const navEl = document.getElementById(navMap[screen]);
   if (navEl) navEl.classList.add("active");
-  if (screen === "home") setTimeout(() => { if(homeMap) homeMap.invalidateSize(); renderHomeMap(); }, 100);
+  if (screen === "home") setTimeout(() => { if (homeMap && window.google) google.maps.event.trigger(homeMap, "resize"); renderHomeMap(); }, 100);
   if (screen === "profile") { renderProfileStats(); updateAuthUI(); }
   if (screen === "saved") renderSaved("all");
   if (screen === "trip") resetTripSteps();
@@ -2145,24 +2177,15 @@ function goTo(screen) {
 
 // ── HOME MAP ──
 function initHomeMap() {
-  if (homeMap) return;
-  homeMap = L.map("home-map", {
-    center:[31.5, 34.85],
-    zoom:8,
-    zoomControl:false,
-    minZoom: 7,
-    maxZoom: 18
-  });
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution:"© OpenStreetMap", maxZoom:19
-  }).addTo(homeMap);
-  L.control.zoom({position:"topleft"}).addTo(homeMap);
+  if (homeMap || !(window.google && window.google.maps)) return;
+  homeMap = new google.maps.Map(document.getElementById("home-map"), gMapOpts({lat:31.5, lng:34.85}, 8));
 }
 
-function renderHomeMap() {
+function renderHomeMap(){ whenMaps(_renderHomeMap); }
+function _renderHomeMap() {
   initHomeMap();
-  homeMap.invalidateSize();
-  homeMarkers.forEach(m => { if (m) homeMap.removeLayer(m); });
+  if (!homeMap) return;
+  homeMarkers.forEach(m => { if (m) m.setMap(null); });
   homeMarkers = [];
   let filtered = homeCatFilter === "all" ? places : places.filter(p => p.cat === homeCatFilter);
   const q = (homeTextFilter || "").trim().toLowerCase();
@@ -2191,22 +2214,19 @@ function renderHomeMap() {
   }
   if(emptyEl) emptyEl.style.display = "none";
   if(cardsWrap) cardsWrap.style.display = "block";
-  const bounds = [];
+  const bounds = new google.maps.LatLngBounds();
+  let nb = 0;
   filtered.forEach((p, i) => {
     if (!p.lat || !p.lng) { homeMarkers.push(null); return; }
-    const m = L.marker([p.lat, p.lng], {
-      icon: L.divIcon({
-        html: `<div style="width:38px;height:38px;border-radius:50%;background:${CC[p.cat]||"#2C6E5A"};border:3px solid white;box-shadow:0 3px 10px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;font-size:17px;">${CE[p.cat]||"📍"}</div>`,
-        iconSize:[38,38], iconAnchor:[19,38], popupAnchor:[0,-42], className:""
-      })
-    }).addTo(homeMap);
-    m.bindPopup(`<div class="pw"><div class="pw-name">${esc(p.name)}</div><div class="pw-sub">${esc(CN[p.cat]||p.cat)} · ${esc(p.loc||"")}</div><div class="pw-meta"><span class="pw-src" style="${SS[p.src]||""}">${esc(SL[p.src]||p.src)}</span><span class="pw-time">${esc(p.time||"")}</span></div><a class="pw-link" href="${esc(safeUrl(p.url))}" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>`, {className:"custom-popup", maxWidth:215});
-    m.on("click", () => selectHomeCard(i));
+    const pos = {lat: p.lat, lng: p.lng};
+    const m = new google.maps.Marker({ position: pos, map: homeMap, icon: mkIcon(CC[p.cat]||"#2C6E5A", CE[p.cat]||"📍", 38) });
+    m._popup = `<div class="pw"><div class="pw-name">${esc(p.name)}</div><div class="pw-sub">${esc(CN[p.cat]||p.cat)} · ${esc(p.loc||"")}</div><div class="pw-meta"><span class="pw-src" style="${SS[p.src]||""}">${esc(SL[p.src]||p.src)}</span><span class="pw-time">${esc(p.time||"")}</span></div><a class="pw-link" href="${esc(safeUrl(p.url))}" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>`;
+    m.addListener("click", () => selectHomeCard(i));
     homeMarkers.push(m);
-    bounds.push([p.lat, p.lng]);
+    bounds.extend(pos); nb++;
   });
-  if (bounds.length === 1) homeMap.setView(bounds[0], 14);
-  else if (bounds.length > 1) homeMap.fitBounds(bounds, {padding:[80,80]});
+  if (nb === 1) { homeMap.setCenter(bounds.getCenter()); homeMap.setZoom(14); }
+  else if (nb > 1) homeMap.fitBounds(bounds, 80);
   // Build cards
   const cardsEl = document.getElementById("home-cards");
   if (!cardsEl) return;
@@ -2236,9 +2256,11 @@ function selectHomeCard(i) {
   document.querySelectorAll(".hcard").forEach((c,j) => c.classList.toggle("selected", j===i));
   const card = document.getElementById("hcard-"+i);
   if (card) card.scrollIntoView({behavior:"smooth", block:"nearest", inline:"center"});
-  if (homeMarkers[i]) {
-    homeMap.flyTo(homeMarkers[i].getLatLng(), 14, {duration:.7});
-    setTimeout(() => homeMarkers[i].openPopup(), 750);
+  const m = homeMarkers[i];
+  if (m && homeMap) {
+    homeMap.panTo(m.getPosition());
+    homeMap.setZoom(14);
+    const iw = gInfoWindow(); iw.setContent(m._popup || ""); iw.open(homeMap, m);
   }
 }
 
@@ -2711,18 +2733,17 @@ async function startTrip(active) {
   document.getElementById("bs-meta").textContent = from + " ← " + to + " · ~" + dist + ' ק"מ';
 
   if (!tripMap) {
-    tripMap = L.map("trip-map", {center:[32.45,34.9], zoom:9, zoomControl:false, minZoom:7, maxZoom:18});
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {attribution:"© OpenStreetMap", maxZoom:19}).addTo(tripMap);
-    L.control.zoom({position:"topleft"}).addTo(tripMap);
+    tripMap = new google.maps.Map(document.getElementById("trip-map"), gMapOpts({lat:32.45, lng:34.9}, 9));
+  } else {
+    google.maps.event.trigger(tripMap, "resize");
   }
-  tripMap.invalidateSize();
 
-  // Clear old layers
-  tripMap.eachLayer(function(l) {
-    if (l instanceof L.Polyline || l._pin) tripMap.removeLayer(l);
-  });
+  // Clear old route + pins
+  if (tripRoute) { tripRoute.setMap(null); tripRoute = null; }
+  tripPins.forEach(function(m){ m.setMap(null); }); tripPins = [];
 
-  // Draw real road route via OSRM
+  // Draw real road route via OSRM; keep the path coords for distance filtering.
+  var routeLatLngs = [];
   try {
     const osrmUrl = "https://router.project-osrm.org/route/v1/driving/" +
       fromLL[1] + "," + fromLL[0] + ";" +
@@ -2732,33 +2753,31 @@ async function startTrip(active) {
     const osrmData = await osrmRes.json();
     if (osrmData.routes && osrmData.routes[0]) {
       const coords = osrmData.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      routeLatLngs = coords;
       const km = Math.round(osrmData.routes[0].distance / 1000);
       const mins = Math.round(osrmData.routes[0].duration / 60);
       const hrs = Math.floor(mins / 60);
       const rem = mins % 60;
       const timeStr = hrs > 0 ? hrs + ":" + String(rem).padStart(2,"0") + " שע'" : mins + " דק'";
       document.getElementById("bs-meta").textContent = from + " ← " + to + " · " + km + ' ק"מ · ' + timeStr;
-      L.polyline(coords, {color:"#2C6E5A", weight:5, opacity:.85}).addTo(tripMap);
+      tripRoute = new google.maps.Polyline({ path: coords.map(function(c){ return {lat:c[0], lng:c[1]}; }), strokeColor:"#2C6E5A", strokeOpacity:.85, strokeWeight:5, map: tripMap });
     } else {
-      L.polyline([fromLL, toLL], {color:"#2C6E5A", weight:5, opacity:.85, dashArray:"12,7"}).addTo(tripMap);
+      routeLatLngs = [fromLL, toLL];
+      tripRoute = new google.maps.Polyline({ path:[{lat:fromLL[0],lng:fromLL[1]},{lat:toLL[0],lng:toLL[1]}], strokeColor:"#2C6E5A", strokeOpacity:.7, strokeWeight:5, map: tripMap });
     }
   } catch(e) {
-    L.polyline([fromLL, toLL], {color:"#2C6E5A", weight:5, opacity:.85, dashArray:"12,7"}).addTo(tripMap);
+    routeLatLngs = [fromLL, toLL];
+    tripRoute = new google.maps.Polyline({ path:[{lat:fromLL[0],lng:fromLL[1]},{lat:toLL[0],lng:toLL[1]}], strokeColor:"#2C6E5A", strokeOpacity:.7, strokeWeight:5, map: tripMap });
   }
 
   // From/To pins
-  function makePinIcon(lbl, bg) {
-    return L.divIcon({
-      html: '<div style="width:26px;height:26px;border-radius:50%;background:' + bg + ';border:2.5px solid white;box-shadow:0 2px 7px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;">' + lbl + '</div>',
-      iconSize:[26,26], iconAnchor:[13,13], className:""
-    });
-  }
+  var mFrom = new google.maps.Marker({ position:{lat:fromLL[0],lng:fromLL[1]}, map:tripMap, icon: mkIcon("#2C6E5A","א",26,"#fff"), title: from });
+  var mTo   = new google.maps.Marker({ position:{lat:toLL[0],lng:toLL[1]}, map:tripMap, icon: mkIcon("#E85D3A","ב",26,"#fff"), title: to });
+  tripPins.push(mFrom, mTo);
 
-  var mFrom = L.marker(fromLL, {icon:makePinIcon("א","#2C6E5A")}).addTo(tripMap).bindTooltip(from);
-  var mTo   = L.marker(toLL,   {icon:makePinIcon("ב","#E85D3A")}).addTo(tripMap).bindTooltip(to);
-  mFrom._pin = true; mTo._pin = true;
-
-  tripMap.fitBounds([fromLL, toLL], {padding:[60,60]});
+  var _tb = new google.maps.LatLngBounds();
+  _tb.extend({lat:fromLL[0],lng:fromLL[1]}); _tb.extend({lat:toLL[0],lng:toLL[1]});
+  tripMap.fitBounds(_tb, 60);
 
   // Get radius from slider (km)
   var radiusKm = parseInt(document.getElementById("rslider").value) || 15;
@@ -2784,13 +2803,7 @@ async function startTrip(active) {
     return minD;
   }
 
-  // Get actual route coords from the polyline
-  var routeLatLngs = [];
-  tripMap.eachLayer(function(l) {
-    if (l instanceof L.Polyline && !l._pin) {
-      routeLatLngs = l.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
-    }
-  });
+  // routeLatLngs was captured above directly from the OSRM route geometry.
 
   // Filter by the selected "what are we looking for" categories AND route distance.
   var tripCats = getTripCats();
@@ -2808,22 +2821,16 @@ async function startTrip(active) {
   buildBSFiltered(nearbyPlaces);
 
   // Place markers (only nearby)
-  tripMarkers.forEach(function(m) { tripMap.removeLayer(m); });
+  tripMarkers.forEach(function(m) { m.setMap(null); });
   tripMarkers = [];
   nearbyPlaces.forEach(function(p, i) {
     if (!p.lat || !p.lng) return;
     var color = CC[p.cat] || "#2C6E5A";
     var emoji = CE[p.cat] || "📍";
     var realDist = routeLatLngs.length > 0 ? Math.round(minDistToRoute(p.lat, p.lng, routeLatLngs)*10)/10 : "?";
-    var m = L.marker([p.lat, p.lng], {
-      icon: L.divIcon({
-        html: '<div style="width:36px;height:36px;border-radius:50%;background:' + color + ';border:3px solid white;box-shadow:0 3px 10px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;font-size:16px;">' + emoji + '</div>',
-        iconSize:[36,36], iconAnchor:[18,36], popupAnchor:[0,-40], className:""
-      })
-    }).addTo(tripMap);
-    var popup = '<div class="pw"><div class="pw-name">' + esc(p.name) + '</div><div class="pw-sub">' + esc(CN[p.cat]||p.cat) + ' · ' + esc(p.loc||"") + ' · ' + realDist + ' ק"מ מהמסלול</div><a class="pw-link" href="' + esc(safeUrl(p.url)) + '" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>';
-    m.bindPopup(popup, {className:"custom-popup", maxWidth:215});
-    m.on("click", function() { activateBSCard(i); });
+    var m = new google.maps.Marker({ position:{lat:p.lat, lng:p.lng}, map:tripMap, icon: mkIcon(color, emoji, 36) });
+    m._popup = '<div class="pw"><div class="pw-name">' + esc(p.name) + '</div><div class="pw-sub">' + esc(CN[p.cat]||p.cat) + ' · ' + esc(p.loc||"") + ' · ' + realDist + ' ק"מ מהמסלול</div><a class="pw-link" href="' + esc(safeUrl(p.url)) + '" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>';
+    m.addListener("click", function() { activateBSCard(i); });
     tripMarkers.push(m);
   });
   // Popups open on tap only (no auto-open of the first station).
@@ -2883,20 +2890,16 @@ function beginTrip() {
 }
 
 // Live "you are here" marker on the trip map, updating during the drive.
-function meDivIcon() {
-  return L.divIcon({
-    html: '<div style="width:18px;height:18px;border-radius:50%;background:#1A73E8;border:3px solid #fff;box-shadow:0 0 0 5px rgba(26,115,232,.25),0 1px 5px rgba(0,0,0,.35);"></div>',
-    iconSize:[18,18], iconAnchor:[9,9], className:""
-  });
-}
+function meLatLng(ll) { return Array.isArray(ll) ? {lat: ll[0], lng: ll[1]} : ll; }
 
 // Drop/update the blue "you are here" marker at ll.
 function setMeMarker(ll) {
-  if (!tripMap) return;
+  if (!tripMap || !window.google) return;
+  var pos = meLatLng(ll);
   if (!meMarker) {
-    meMarker = L.marker(ll, { icon: meDivIcon(), zIndexOffset: 1000 }).addTo(tripMap).bindTooltip("המיקום שלי");
+    meMarker = new google.maps.Marker({ position: pos, map: tripMap, zIndex: 1000, icon: mkIcon("#1A73E8","",18), title: "המיקום שלי" });
   } else {
-    meMarker.setLatLng(ll);
+    meMarker.setPosition(pos);
   }
 }
 
@@ -2914,13 +2917,13 @@ function startLiveLocation() {
 // then fetches a fresh fix and flies there (also shows the marker in browse mode).
 function centerOnMe() {
   if (!tripMap) return;
-  if (myLocation) { tripMap.flyTo(myLocation, 15, { duration: .6 }); }
+  if (myLocation) { tripMap.panTo(meLatLng(myLocation)); tripMap.setZoom(15); }
   if (!navigator.geolocation) { if (!myLocation) toast("מיקום לא זמין במכשיר הזה"); return; }
   navigator.geolocation.getCurrentPosition(function(pos) {
     const ll = [pos.coords.latitude, pos.coords.longitude];
     myLocation = ll;
     setMeMarker(ll);
-    tripMap.flyTo(ll, 15, { duration: .6 });
+    tripMap.panTo(meLatLng(ll)); tripMap.setZoom(15);
   }, function() {
     if (!myLocation) toast("לא הצלחנו לאתר את המיקום");
   }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 12000 });
@@ -2928,7 +2931,7 @@ function centerOnMe() {
 
 function stopLiveLocation() {
   if (tripGeoWatch != null && navigator.geolocation) { navigator.geolocation.clearWatch(tripGeoWatch); tripGeoWatch = null; }
-  if (meMarker && tripMap) { tripMap.removeLayer(meMarker); }
+  if (meMarker) { meMarker.setMap(null); }
   meMarker = null;
 }
 
@@ -2962,13 +2965,14 @@ function activateBSCard(i) {
   document.querySelectorAll(".bsc").forEach((c,j)=>c.classList.toggle("on",j===i));
   document.querySelectorAll(".bsl").forEach((c,j)=>c.classList.toggle("on",j===i));
   const bsc = document.getElementById("bsc-"+i); if(bsc) bsc.scrollIntoView({behavior:"smooth",block:"nearest",inline:"center"});
-  if (tripMap && tripMarkers[i]) { tripMap.flyTo(tripMarkers[i].getLatLng(),14,{duration:.7}); setTimeout(()=>tripMarkers[i].openPopup(),750); }
+  const m = tripMarkers[i];
+  if (tripMap && m) { tripMap.panTo(m.getPosition()); tripMap.setZoom(14); const iw=gInfoWindow(); iw.setContent(m._popup||""); iw.open(tripMap, m); }
 }
 
 function toggleBS() {
   bsExp = !bsExp;
   document.getElementById("bs").classList.toggle("exp", bsExp);
-  if (tripMap) setTimeout(()=>tripMap.invalidateSize(), 320);
+  if (tripMap && window.google) setTimeout(()=>google.maps.event.trigger(tripMap, "resize"), 320);
 }
 
 // ── SAVED SCREEN ──
@@ -3071,7 +3075,7 @@ function handleSharedLink() {
 }
 
 loadPlaces();
-setTimeout(() => { initHomeMap(); renderHomeMap(); }, 200);
+setTimeout(() => { renderHomeMap(); }, 200);
 initCloud();
 if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/sw.js").catch(() => {}); }
 (function(){ const u = document.getElementById("url-in"); if (u) u.addEventListener("input", e => autoSource(e.target.value)); })();
@@ -3146,5 +3150,6 @@ window.addEventListener("appinstalled", () => markInstalledDone());
 setTimeout(() => { if (places.length > 0) maybeShowInstall(); }, 3000);
 
 </script>
+<script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDlU8_OiCXYKx3XDB3anBVPbfGinHJeRg4&language=he&region=IL&callback=__onMapsReady"></script>
 </body>
 </html>
