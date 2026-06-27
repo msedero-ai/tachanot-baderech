@@ -2252,7 +2252,7 @@ function _renderHomeMap() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(function(pos){
         var ll = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-        homeMap.setCenter(ll); homeMap.setZoom(11);
+        homeMap.setCenter(ll); homeMap.setZoom(9);
         if (!homeMeMarker) homeMeMarker = new google.maps.Marker({ position: ll, map: homeMap, icon: mkIcon("#1A73E8","",16), title: "המיקום שלי", zIndex: 999 });
         else homeMeMarker.setPosition(ll);
       }, function(){}, { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 });
