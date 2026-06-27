@@ -1347,7 +1347,7 @@ body {
           </div>
           <div class="t-step map-step" id="tp2">
             <div style="position:absolute;top:12px;right:12px;z-index:500;display:flex;gap:8px;align-items:center;">
-              <button id="trip-action-btn" onclick="beginTrip()" style="background:var(--brand);color:#fff;border:none;border-radius:22px;padding:9px 16px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:var(--shadow-md);">🚗 התחל טיול</button>
+              <button id="trip-action-btn" onclick="beginTrip()" style="background:var(--brand);color:#fff;border:none;border-radius:22px;padding:9px 16px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:var(--shadow-md);">🚗 התחל מסלול</button>
               <button id="trip-back-btn" onclick="goTripStep1()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:22px;padding:9px 14px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:var(--shadow-md);">↩ שנה מסלול</button>
             </div>
             <div id="trip-map"></div>
@@ -1463,7 +1463,7 @@ body {
       <div class="ni-ic">🏠</div><div class="ni-lb">ראשי</div>
     </div>
     <div class="ni" id="ni-trip" onclick="goTo('trip')">
-      <div class="ni-ic">🚗</div><div class="ni-lb">טיול</div>
+      <div class="ni-ic">🚗</div><div class="ni-lb">מסלול</div>
     </div>
     <div class="ni-fab" onclick="goTo('add')">＋</div>
     <div class="ni" id="ni-saved" onclick="goTo('saved')">
@@ -1536,9 +1536,9 @@ body {
         </ol>
       </details>
 
-      <div class="help-step"><div class="help-em">🗺️</div><div><div class="help-t">מצא תחנות בדרך</div><div class="help-d">במסך <b>טיול</b> בחרו מאיפה לאן, וראו אילו מהמקומות ששמרתם נמצאים על המסלול — בלי להתחיל טיול, רק להציץ.</div></div></div>
+      <div class="help-step"><div class="help-em">🗺️</div><div><div class="help-t">מצא תחנות בדרך</div><div class="help-d">במסך <b>מסלול</b> בחרו מאיפה לאן, וראו אילו מהמקומות ששמרתם נמצאים על הדרך — בלי להתחיל לנסוע, רק להציץ.</div></div></div>
 
-      <div class="help-step"><div class="help-em">🚙</div><div><div class="help-t">מצב טיול</div><div class="help-d">לחצו <b>התחל טיול</b> כדי לעקוב בזמן אמת: המיקום שלכם על המפה והתחנות בדרך. הטיול נשמר גם אם יצאתם מהאפליקציה — לחצו <b>סיים טיול</b> כשסיימתם.</div></div></div>
+      <div class="help-step"><div class="help-em">🚙</div><div><div class="help-t">מצב מסלול</div><div class="help-d">לחצו <b>התחל מסלול</b> כדי לעקוב בזמן אמת: המיקום שלכם על המפה והתחנות בדרך. המסלול נשמר גם אם יצאתם מהאפליקציה — לחצו <b>סיים מסלול</b> כשסיימתם.</div></div></div>
 
       <div class="help-step"><div class="help-em">☁️</div><div><div class="help-t">סנכרון בענן</div><div class="help-d">התחברו עם Google במסך <b>פרופיל</b> כדי לשמור את התחנות בענן ולסנכרן אוטומטית בין כל המכשירים שלכם.</div></div></div>
 
@@ -2862,11 +2862,11 @@ function setTripAction(active) {
   const btn = document.getElementById("trip-action-btn");
   if (!btn) return;
   if (active) {
-    btn.textContent = "✕ סיים טיול";
+    btn.textContent = "✕ סיים מסלול";
     btn.onclick = endTrip;
     btn.style.background = "var(--accent)";
   } else {
-    btn.textContent = "🚗 התחל טיול";
+    btn.textContent = "🚗 התחל מסלול";
     btn.onclick = beginTrip;
     btn.style.background = "var(--brand)";
   }
