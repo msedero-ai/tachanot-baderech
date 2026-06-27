@@ -1514,9 +1514,9 @@ body {
       <button onclick="closeHelp()" style="background:rgba(255,255,255,.2);border:none;color:white;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;line-height:1;">✕</button>
     </div>
     <div style="padding:18px 18px 32px;max-width:560px;margin:0 auto;">
-      <div style="font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:18px;">ראיתם מקום מגניב ברשתות? "תחנות בדרך" שומרת אותו בשבילכם, ומראה לכם אילו מהמקומות ששמרתם על המסלול כשאתם נוסעים.</div>
+      <div style="font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:18px;">שומרים מקומות שראיתם ברשתות — ורואים אותם על המפה בדיוק כשנוסעים לידם. ככה זה עובד:</div>
 
-      <div class="help-step"><div class="help-em">📍</div><div><div class="help-t">שמירת מקום מהרשתות</div><div class="help-d">ראיתם קפה/טיול/מסעדה בטיקטוק או אינסטגרם? ככה שומרים אותו — בחרו לפי המכשיר שלכם 👇</div></div></div>
+      <div class="help-step"><div class="help-em">📍</div><div><div class="help-t">שמירת מקום מהרשתות</div><div class="help-d">ראיתם קפה/טיול/מסעדה בטיקטוק או אינסטגרם? ככה שומרים אותו — בחרו לפי המכשיר שלכם 👇<br><span style="font-size:12px;color:var(--text3)">(קוראים רק את הקישור ששיתפתם — כלום מעבר.)</span></div></div></div>
 
       <div class="help-step"><div class="help-em">🤖</div><div><div class="help-t">אנדרואיד — שיתוף ישיר</div><div class="help-d">בפוסט לחצו <b>שיתוף ↗</b> ובחרו <b>"תחנות בדרך"</b> — האפליקציה נפתחת עם הקישור וה-AI מזהה ושומר אוטומטית. ✨<br><span style="font-size:12px;color:var(--text3)">(לא רואים את "תחנות בדרך" ברשימת השיתוף? ודאו שהאפליקציה <b>מותקנת</b> דרך התפריט של כרום — או השתמשו בהעתק-הדבק כמו באייפון.)</span></div></div></div>
 
@@ -1539,15 +1539,19 @@ body {
         </ol>
       </details>
 
-      <div class="help-step"><div class="help-em">🗺️</div><div><div class="help-t">מצא תחנות בדרך</div><div class="help-d">במסך <b>מסלול</b> בחרו מאיפה לאן, וראו אילו מהמקומות ששמרתם נמצאים על הדרך — בלי להתחיל לנסוע, רק להציץ.</div></div></div>
+      <div class="help-step"><div class="help-em">🗺️</div><div><div class="help-t">מה יש בדרך?</div><div class="help-d">במסך <b>מסלול</b> בוחרים מאיפה לאן — והאפליקציה מראה אילו מהמקומות ששמרתם נמצאים על המסלול. בלי להתחיל לנסוע, רק להציץ.</div></div></div>
 
-      <div class="help-step"><div class="help-em">🚙</div><div><div class="help-t">מצב מסלול</div><div class="help-d">לחצו <b>התחל מסלול</b> כדי לעקוב בזמן אמת: המיקום שלכם על המפה והתחנות בדרך. המסלול נשמר גם אם יצאתם מהאפליקציה — לחצו <b>סיים מסלול</b> כשסיימתם.</div></div></div>
+      <div class="help-step"><div class="help-em">🧭</div><div><div class="help-t">ניווט בלחיצה</div><div class="help-d">לכל מקום יש כפתורי <b>🧭 Google</b> ו-<b>🚗 Waze</b> — לחיצה אחת, ואתם בדרך לשם מהמיקום הנוכחי שלכם.</div></div></div>
 
-      <div class="help-step"><div class="help-em">☁️</div><div><div class="help-t">סנכרון בענן</div><div class="help-d">התחברו עם Google במסך <b>פרופיל</b> כדי לשמור את התחנות בענן ולסנכרן אוטומטית בין כל המכשירים שלכם.</div></div></div>
+      <div class="help-step"><div class="help-em">🚙</div><div><div class="help-t">בדרך? נזכיר לכם</div><div class="help-d">לוחצים <b>התחל מסלול</b> ורואים בזמן אמת את המיקום שלכם על המפה ואת המקומות הקרובים בדרך. המסלול נשמר גם אם יצאתם — לוחצים <b>סיים מסלול</b> כשמסיימים.</div></div></div>
 
-      <div class="help-step"><div class="help-em">📱</div><div><div class="help-t">התקנה למסך הבית</div><div class="help-d">גישה בלחיצה אחת, פתיחה במסך מלא, ועובדת גם בלי אינטרנט.<br><button onclick="installOrGuide()" style="margin-top:9px;background:var(--brand);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">📲 התקן את האפליקציה</button></div></div></div>
+      <div class="help-step"><div class="help-em">💌</div><div><div class="help-t">שתפו מקום עם חברים</div><div class="help-d">מצאתם מקום מושלם? לחצו <b>📤 שתף</b> על המקום ושלחו אותו לחבר — הוא יקבל אותו ישר על המפה שלו. ככה חברים מגלים את האפליקציה 😉</div></div></div>
 
-      <button class="btn-primary" style="margin-top:8px;" onclick="closeHelp()">הבנתי, יאללה 🚀</button>
+      <div class="help-step"><div class="help-em">📱</div><div><div class="help-t">הוסיפו למסך הבית</div><div class="help-d">גישה מהירה כמו אפליקציה רגילה, פתיחה במסך מלא, ועובדת גם בלי אינטרנט.<br><button onclick="installOrGuide()" style="margin-top:9px;background:var(--brand);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">📲 התקן את האפליקציה</button></div></div></div>
+
+      <div class="help-step"><div class="help-em">☁️</div><div><div class="help-t">הכל נשמר, גם אם מחליפים טלפון</div><div class="help-d">התחברו עם Google במסך <b>פרופיל</b> — והמקומות שלכם נשמרים ומופיעים בכל המכשירים שלכם.</div></div></div>
+
+      <button class="btn-primary" style="margin-top:8px;" onclick="closeHelp()">יאללה, נשמור מקום ראשון 🚀</button>
     </div>
   </div>
 </div>
