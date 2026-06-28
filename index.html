@@ -1379,7 +1379,10 @@ body {
       <div style="background:var(--surface);padding:10px 12px 8px;border-bottom:1px solid var(--border);flex-shrink:0;">
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <div style="font-size:17px;font-weight:800;">📍 התחנות שלי</div>
-          <span id="saved-count" style="font-size:12px;font-weight:700;background:var(--brand);color:white;padding:2px 9px;border-radius:20px;">0</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button id="saved-share-toggle" onclick="toggleSavedSelect()" style="background:var(--brand-pale);border:1px solid var(--brand);color:var(--brand);border-radius:10px;padding:6px 11px;font-family:Heebo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;">📤 שתף כמה</button>
+            <span id="saved-count" style="font-size:12px;font-weight:700;background:var(--brand);color:white;padding:2px 9px;border-radius:20px;">0</span>
+          </div>
         </div>
         <div class="hscroll" style="display:flex;gap:7px;overflow-x:auto;padding:8px 0 2px;scrollbar-width:none;">
           <div class="hcat on all" onclick="filterSaved(this,'all')">🗺️ הכל</div>
@@ -1392,6 +1395,10 @@ body {
         </div>
       </div>
       <div id="saved-list" style="padding:12px 12px 24px;overflow-y:auto;"></div>
+      <div id="saved-share-bar" style="display:none;position:fixed;bottom:calc(var(--nav-h) + var(--safe-b));left:0;right:0;z-index:1100;padding:12px 14px;background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -2px 12px rgba(0,0,0,.12);gap:10px;align-items:center;">
+        <button onclick="toggleSavedSelect()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:13px 16px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer;">ביטול</button>
+        <button id="saved-share-go" onclick="shareSelected()" style="flex:1;background:var(--brand);color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;opacity:.5;">📤 שתף (0)</button>
+      </div>
     </div>
 
     <!-- PROFILE -->
@@ -1778,7 +1785,8 @@ function shareCode() {
 function sharePlace(id) {
   const p = places.find(x => String(x.id) === String(id));
   if (!p) return;
-  const payload = { n: p.name||"", c: p.cat||"hike", l: p.loc||"", d: p.desc||"", a: p.lat, g: p.lng, u: p.url||"", s: p.src||"oth" };
+  const by = (currentUser && (currentUser.displayName || currentUser.email)) || "";
+  const payload = { n: p.name||"", c: p.cat||"hike", l: p.loc||"", d: p.desc||"", a: p.lat, g: p.lng, u: p.url||"", s: p.src||"oth", by: by };
   let link;
   if (db && currentUser) {
     // Signed in: store under a short code → clean short link. Fire-and-forget so
@@ -1823,6 +1831,7 @@ function findDuplicate(p) {
 // recipient just taps save. If it already exists, offer to update instead.
 function loadSharedPlace(raw) {
   if (!raw || typeof raw !== "object") return;
+  window._pendingBy = String(raw.by || "").slice(0,80);
   const lat = Number(raw.a), lng = Number(raw.g);
   let url = String(raw.u || "").trim(); if (url && !/^https?:\/\//i.test(url)) url = "";
   const p = {
@@ -2234,7 +2243,7 @@ function _renderHomeMap() {
     if (!p.lat || !p.lng) { homeMarkers.push(null); return; }
     const pos = {lat: p.lat, lng: p.lng};
     const m = new google.maps.Marker({ position: pos, map: homeMap, icon: mkIcon(CC[p.cat]||"#2C6E5A", CE[p.cat]||"📍", 38) });
-    m._popup = `<div class="pw"><div class="pw-name">${esc(p.name)}</div><div class="pw-sub">${esc(CN[p.cat]||p.cat)} · ${esc(p.loc||"")}</div><div class="pw-meta"><span class="pw-src" style="${SS[p.src]||""}">${esc(SL[p.src]||p.src)}</span><span class="pw-time">${esc(p.time||"")}</span></div><a class="pw-link" href="${navUrl(p)}" target="_blank">🧭 נווט בגוגל מפות ←</a><a class="pw-link" href="${wazeUrl(p)}" target="_blank">🚗 נווט ב-Waze ←</a><a class="pw-link" href="${esc(safeUrl(p.url))}" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>`;
+    m._popup = `<div class="pw"><div class="pw-name">${esc(p.name)}</div><div class="pw-sub">${esc(CN[p.cat]||p.cat)} · ${esc(p.loc||"")}</div>${p.by?`<div class="pw-sub" style="color:var(--brand);font-weight:700;">🎁 מ-${esc(p.by)}</div>`:""}<div class="pw-meta"><span class="pw-src" style="${SS[p.src]||""}">${esc(SL[p.src]||p.src)}</span><span class="pw-time">${esc(p.time||"")}</span></div><a class="pw-link" href="${navUrl(p)}" target="_blank">🧭 נווט בגוגל מפות ←</a><a class="pw-link" href="${wazeUrl(p)}" target="_blank">🚗 נווט ב-Waze ←</a><a class="pw-link" href="${esc(safeUrl(p.url))}" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>`;
     m.addListener("click", () => selectHomeCard(i));
     homeMarkers.push(m);
     bounds.extend(pos); nb++;
@@ -2276,6 +2285,7 @@ function _renderHomeMap() {
         <div class="hc-name">${esc(p.name)}</div>
         <button onclick="event.stopPropagation();deletePlace('${idStr(p.id)}')" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:2px 4px;flex-shrink:0;line-height:1;">🗑</button>
       </div>
+      ${p.by?`<div style="font-size:10px;color:var(--brand);font-weight:700;margin:0 0 6px;">🎁 מ-${esc(p.by)}</div>`:""}
       <div class="hc-meta">
         <span class="hc-tag" style="background:${CC[p.cat]||"#2C6E5A"}">${esc(CN[p.cat]||p.cat)}</span>
         <span class="hc-src src-${esc(p.src||"oth")}">${esc(SL[p.src]||SL.oth)}</span>
@@ -2417,6 +2427,7 @@ async function pasteLink() {
 async function analyzeLink() {
   const url = document.getElementById("url-in").value.trim();
   const extraDesc = (document.getElementById("url-desc")?.value || "").trim();
+  window._pendingBy = null; // a fresh AI add is not "shared by" anyone
   if (!url) { document.getElementById("url-in").style.outline="2px solid #E85D3A"; setTimeout(()=>document.getElementById("url-in").style.outline="",1500); return; }
   // AI recognition ("search") is for signed-in users only. Wait for auth to be
   // restored first — otherwise a fresh load (share-target) wrongly looks logged out.
@@ -2641,6 +2652,8 @@ function savePlace() {
     src, time: new Date().toLocaleDateString("he-IL"),
     url: lastResult?.url || ""
   };
+  if (window._pendingBy) newPlace.by = window._pendingBy;
+  window._pendingBy = null;
   places.unshift(newPlace);
   savePlaces();
   cloudPush(newPlace);
@@ -2876,7 +2889,7 @@ async function startTrip(active) {
     var emoji = CE[p.cat] || "📍";
     var realDist = routeLatLngs.length > 0 ? Math.round(minDistToRoute(p.lat, p.lng, routeLatLngs)*10)/10 : "?";
     var m = new google.maps.Marker({ position:{lat:p.lat, lng:p.lng}, map:tripMap, icon: mkIcon(color, emoji, 36) });
-    m._popup = '<div class="pw"><div class="pw-name">' + esc(p.name) + '</div><div class="pw-sub">' + esc(CN[p.cat]||p.cat) + ' · ' + esc(p.loc||"") + ' · ' + realDist + ' ק"מ מהמסלול</div><a class="pw-link" href="' + navUrl(p) + '" target="_blank">🧭 נווט בגוגל מפות ←</a><a class="pw-link" href="' + wazeUrl(p) + '" target="_blank">🚗 נווט ב-Waze ←</a><a class="pw-link" href="' + esc(safeUrl(p.url)) + '" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>';
+    m._popup = '<div class="pw"><div class="pw-name">' + esc(p.name) + '</div><div class="pw-sub">' + esc(CN[p.cat]||p.cat) + ' · ' + esc(p.loc||"") + ' · ' + realDist + ' ק"מ מהמסלול</div>' + (p.by?('<div class="pw-sub" style="color:var(--brand);font-weight:700;">🎁 מ-'+esc(p.by)+'</div>'):'') + '<a class="pw-link" href="' + navUrl(p) + '" target="_blank">🧭 נווט בגוגל מפות ←</a><a class="pw-link" href="' + wazeUrl(p) + '" target="_blank">🚗 נווט ב-Waze ←</a><a class="pw-link" href="' + esc(safeUrl(p.url)) + '" target="_blank">🔗 פתח את הפוסט המקורי ←</a></div>';
     m.addListener("click", function() { activateBSCard(i); });
     tripMarkers.push(m);
   });
@@ -3024,6 +3037,8 @@ function toggleBS() {
 
 // ── SAVED SCREEN ──
 var savedCatFilter = "all";
+var savedSelectMode = false;
+var savedSelected = new Set();
 function filterSaved(el, cat) {
   document.querySelectorAll("#s-saved .hcat").forEach(c => c.classList.remove("on"));
   el.classList.add("on");
@@ -3042,8 +3057,132 @@ function renderSaved(cat) {
     return;
   }
   el.innerHTML = filtered.map((p, i) => {
-    return "<div style=\"display:flex;gap:12px;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid var(--border);cursor:pointer;\" onclick=\"goTo('home')\"><div style=\"width:46px;height:46px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;margin-bottom:3px;\">" + esc(p.name) + "</div><div style=\"font-size:11px;color:var(--text2);margin-bottom:6px;\">📍 " + esc(p.loc||"") + " · " + esc(p.time||"") + "</div><div style=\"display:flex;gap:6px;\"><span style=\"font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;color:white;background:" + (CC[p.cat]||"#2C6E5A") + "\">" + esc(CN[p.cat]||p.cat) + "</span></div></div><div style=\"display:flex;flex-direction:column;gap:6px;\"><button onclick=\"event.stopPropagation();sharePlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;\">📤</button><button onclick=\"event.stopPropagation();editPlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;\">✏️</button><button onclick=\"event.stopPropagation();deletePlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;\">🗑</button></div></div>";
+    const byLine = p.by ? "<div style=\"font-size:10px;color:var(--brand);font-weight:700;margin-top:3px;\">🎁 מ-" + esc(p.by) + "</div>" : "";
+    if (savedSelectMode) {
+      const on = savedSelected.has(String(p.id));
+      return "<div onclick=\"toggleSavedPick('" + idStr(p.id) + "')\" style=\"display:flex;gap:12px;align-items:center;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid " + (on?"var(--brand)":"var(--border)") + ";cursor:pointer;\"><div id=\"pick-" + idStr(p.id) + "\" style=\"width:24px;height:24px;border-radius:7px;border:2px solid " + (on?"var(--brand)":"var(--text3)") + ";background:" + (on?"var(--brand)":"transparent") + ";color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;\">" + (on?"✓":"") + "</div><div style=\"width:40px;height:40px;border-radius:11px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;\">" + esc(p.name) + "</div><div style=\"font-size:11px;color:var(--text2);\">📍 " + esc(p.loc||"") + "</div>" + byLine + "</div></div>";
+    }
+    return "<div style=\"display:flex;gap:12px;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid var(--border);cursor:pointer;\" onclick=\"goTo('home')\"><div style=\"width:46px;height:46px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;margin-bottom:3px;\">" + esc(p.name) + "</div><div style=\"font-size:11px;color:var(--text2);margin-bottom:6px;\">📍 " + esc(p.loc||"") + " · " + esc(p.time||"") + "</div><div style=\"display:flex;gap:6px;\"><span style=\"font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;color:white;background:" + (CC[p.cat]||"#2C6E5A") + "\">" + esc(CN[p.cat]||p.cat) + "</span></div>" + byLine + "</div><div style=\"display:flex;flex-direction:column;gap:6px;\"><button onclick=\"event.stopPropagation();sharePlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;\">📤</button><button onclick=\"event.stopPropagation();editPlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;\">✏️</button><button onclick=\"event.stopPropagation();deletePlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;\">🗑</button></div></div>";
   }).join("");
+}
+
+// ── SHARE MULTIPLE PLACES (select mode on the Saved screen) ──
+function toggleSavedSelect() {
+  savedSelectMode = !savedSelectMode;
+  savedSelected.clear();
+  var btn = document.getElementById("saved-share-toggle");
+  if (btn) btn.textContent = savedSelectMode ? "✕ ביטול" : "📤 שתף כמה";
+  var bar = document.getElementById("saved-share-bar");
+  if (bar) bar.style.display = savedSelectMode ? "flex" : "none";
+  var list = document.getElementById("saved-list");
+  if (list) list.style.paddingBottom = savedSelectMode ? "96px" : "";
+  updateSavedShareBar();
+  renderSaved(savedCatFilter || "all");
+}
+function toggleSavedPick(id) {
+  id = String(id);
+  if (savedSelected.has(id)) savedSelected.delete(id);
+  else {
+    if (savedSelected.size >= 30) { toast("אפשר לשתף עד 30 מקומות בבת אחת"); return; }
+    savedSelected.add(id);
+  }
+  updateSavedShareBar();
+  renderSaved(savedCatFilter || "all");
+}
+function updateSavedShareBar() {
+  var n = savedSelected.size;
+  var b = document.getElementById("saved-share-go");
+  if (b) { b.textContent = "📤 שתף (" + n + ")"; b.style.opacity = n ? "1" : ".5"; }
+}
+function shareSelected() {
+  var sel = places.filter(p => savedSelected.has(String(p.id)));
+  if (!sel.length) { toast("בחרו מקומות לשיתוף"); return; }
+  if (sel.length > 30) { toast("אפשר לשתף עד 30 מקומות"); return; }
+  var items = sel.map(p => ({ n:p.name||"", c:p.cat||"hike", l:p.loc||"", d:p.desc||"", a:p.lat, g:p.lng, u:p.url||"", s:p.src||"oth" }));
+  var by = (currentUser && (currentUser.displayName || currentUser.email)) || "";
+  var link;
+  if (db && currentUser) {
+    var code = shareCode();
+    link = location.origin + "/?p=" + code;
+    db.collection("shares").doc(code).set({ type:"places", items:items, by:by, uid:currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(e => console.warn("multi-share failed", e));
+  } else {
+    link = location.origin + "/?places=" + b64urlEncode(JSON.stringify({ items:items, by:by }));
+  }
+  var appLine = "ראיתם מקום מגניב בטיקטוק/אינסטגרם 👀? משתפים אותו ל\"תחנות בדרך\", והיא שומרת אותו ומראה לכם אותו על המסלול כשאתם נוסעים 🚗";
+  var pitch = "שיתפתי איתך " + sel.length + " מקומות שווים! 🗺️\nפתח/י ושמור/י אותם אצלך 👇";
+  var message = pitch + "\n" + link + "\n\n" + appLine;
+  var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  if (isMobile && navigator.share) {
+    navigator.share({ title:"תחנות בדרך", text: message }).catch(err => { if (!err || err.name !== "AbortError") copyAppLink(message); });
+  } else {
+    copyAppLink(message);
+  }
+  toggleSavedSelect();
+}
+
+// ── RECEIVE MULTIPLE PLACES (a friend shared a bundle) ──
+function loadSharedPlaces(rawItems, by) {
+  var items = (rawItems||[]).slice(0,30).map(function(raw){
+    var lat=Number(raw.a), lng=Number(raw.g);
+    var url=String(raw.u||"").trim(); if(url && !/^https?:\/\//i.test(url)) url="";
+    return { name:String(raw.n||"").trim().slice(0,200)||"מקום חדש", cat:CC[raw.c]?raw.c:"hike", loc:String(raw.l||"").trim().slice(0,200), desc:String(raw.d||"").trim().slice(0,1000), lat:Number.isFinite(lat)?lat:null, lng:Number.isFinite(lng)?lng:null, url:url.slice(0,2048), src:["tt","ig","fb","wa"].includes(raw.s)?raw.s:"oth" };
+  });
+  if (!items.length) return;
+  window._recvItems = items;
+  window._recvBy = String(by||"").slice(0,80);
+  window._recvPick = items.map(function(){ return true; });
+  var ov = document.getElementById("recv-overlay");
+  if (!ov) { ov = document.createElement("div"); ov.id = "recv-overlay"; ov.style.cssText = "display:none;position:fixed;inset:0;z-index:1300;background:var(--bg);overflow-y:auto;"; document.body.appendChild(ov); }
+  var byTxt = window._recvBy ? ("<div style=\"font-size:13px;opacity:.95;margin-top:4px;\">מ-" + esc(window._recvBy) + " 🎁</div>") : "";
+  var rows = items.map(function(p,i){
+    return "<div onclick=\"recvTogglePick(" + i + ")\" id=\"recv-row-" + i + "\" style=\"display:flex;gap:12px;align-items:center;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid var(--brand);cursor:pointer;\"><div id=\"recv-pick-" + i + "\" style=\"width:24px;height:24px;border-radius:7px;border:2px solid var(--brand);background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;\">✓</div><div style=\"width:40px;height:40px;border-radius:11px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;\">" + esc(p.name) + "</div><div style=\"font-size:11px;color:var(--text2);\">📍 " + esc(p.loc||"") + "</div></div></div>";
+  }).join("");
+  ov.innerHTML =
+    "<div style=\"position:sticky;top:0;background:linear-gradient(145deg,var(--brand-l),var(--brand));color:#fff;padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow-md);\"><div><div style=\"font-size:18px;font-weight:800;\">👋 קיבלת " + items.length + " מקומות</div>" + byTxt + "</div><button onclick=\"closeRecv()\" style=\"background:rgba(255,255,255,.2);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;line-height:1;\">✕</button></div>" +
+    "<div style=\"padding:16px 14px 120px;max-width:560px;margin:0 auto;\"><div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;\"><div style=\"font-size:13px;color:var(--text2);\">בחרו אילו להוסיף:</div><button onclick=\"recvToggleAll()\" id=\"recv-allbtn\" style=\"background:none;border:none;color:var(--brand);font-weight:700;font-size:13px;cursor:pointer;font-family:Heebo,sans-serif;\">נקה הכל</button></div>" + rows + "</div>" +
+    "<div style=\"position:fixed;bottom:0;left:0;right:0;padding:12px 14px calc(env(safe-area-inset-bottom,0px) + 14px);background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -2px 12px rgba(0,0,0,.12);\"><button id=\"recv-add\" onclick=\"addReceived()\" style=\"width:100%;background:var(--brand);color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;\">➕ הוסף את כולם</button></div>";
+  ov.style.display = "block";
+  recvUpdateAddBtn();
+}
+function recvTogglePick(i) {
+  window._recvPick[i] = !window._recvPick[i];
+  var on = window._recvPick[i];
+  var pick = document.getElementById("recv-pick-" + i), row = document.getElementById("recv-row-" + i);
+  if (pick) { pick.style.background = on?"var(--brand)":"transparent"; pick.style.borderColor = on?"var(--brand)":"var(--text3)"; pick.textContent = on?"✓":""; }
+  if (row) row.style.borderColor = on?"var(--brand)":"var(--border)";
+  recvUpdateAddBtn();
+}
+function recvToggleAll() {
+  var nv = !(window._recvPick||[]).every(Boolean);
+  window._recvPick = (window._recvPick||[]).map(function(){ return nv; });
+  (window._recvItems||[]).forEach(function(_,i){
+    var pick = document.getElementById("recv-pick-" + i), row = document.getElementById("recv-row-" + i);
+    if (pick) { pick.style.background = nv?"var(--brand)":"transparent"; pick.style.borderColor = nv?"var(--brand)":"var(--text3)"; pick.textContent = nv?"✓":""; }
+    if (row) row.style.borderColor = nv?"var(--brand)":"var(--border)";
+  });
+  recvUpdateAddBtn();
+}
+function recvUpdateAddBtn() {
+  var n = (window._recvPick||[]).filter(Boolean).length, total = (window._recvItems||[]).length;
+  var b = document.getElementById("recv-add");
+  if (b) { b.textContent = (n===total) ? ("➕ הוסף את כולם (" + n + ")") : ("➕ הוסף נבחרים (" + n + ")"); b.style.opacity = n?"1":".5"; }
+  var ab = document.getElementById("recv-allbtn"); if (ab) ab.textContent = (window._recvPick||[]).every(Boolean) ? "נקה הכל" : "בחר הכל";
+}
+function closeRecv() { var ov=document.getElementById("recv-overlay"); if (ov) ov.style.display="none"; }
+function addReceived() {
+  var items = window._recvItems||[], pick = window._recvPick||[], by = window._recvBy||"";
+  var added=0, skipped=0;
+  items.forEach(function(p,i){
+    if (!pick[i]) return;
+    if (findDuplicate(p)) { skipped++; return; }
+    var np = { id: Date.now().toString()+"_"+i, name:p.name, cat:p.cat, loc:p.loc, desc:p.desc, lat:(p.lat!=null?p.lat:32.08), lng:(p.lng!=null?p.lng:34.78), src:p.src, time:new Date().toLocaleDateString("he-IL"), url:p.url, by: by };
+    places.unshift(np); cloudPush(np); added++;
+  });
+  if (added) savePlaces();
+  closeRecv();
+  if (added) renderHomeMap();
+  goTo("home");
+  toast(added ? ("נוספו " + added + " מקומות 🗺️" + (skipped?(" · " + skipped + " כבר היו אצלך"):"")) : "כל המקומות כבר אצלך ✓");
 }
 
 // ── THEME ──
@@ -3088,7 +3227,13 @@ function handleSharedLink() {
     history.replaceState(null, "", location.pathname);
     if (db) {
       db.collection("shares").doc(code).get()
-        .then(snap => { if (snap.exists) loadSharedPlace(snap.data()); else toast("הקישור לא נמצא או פג תוקף"); })
+        .then(snap => {
+          if (snap.exists) {
+            const d = snap.data();
+            if (d && Array.isArray(d.items)) loadSharedPlaces(d.items, d.by || "");
+            else loadSharedPlace(d);
+          } else toast("הקישור לא נמצא או פג תוקף");
+        })
         .catch(() => toast("לא ניתן לטעון את המקום כרגע"));
     } else {
       toast("לא ניתן לטעון את המקום כרגע");
@@ -3102,6 +3247,15 @@ function handleSharedLink() {
     try { shared = JSON.parse(b64urlDecode(placeParam)); } catch (e) {}
     history.replaceState(null, "", location.pathname);
     if (shared) loadSharedPlace(shared);
+    return;
+  }
+  // Fallback: multiple places encoded in the link (?places=<encoded>).
+  const placesParam = p.get("places");
+  if (placesParam) {
+    let bundle = null;
+    try { bundle = JSON.parse(b64urlDecode(placesParam)); } catch (e) {}
+    history.replaceState(null, "", location.pathname);
+    if (bundle && Array.isArray(bundle.items)) loadSharedPlaces(bundle.items, bundle.by || "");
     return;
   }
   const raw = (p.get("url") || p.get("share") || p.get("text") || p.get("title") || "").trim();
