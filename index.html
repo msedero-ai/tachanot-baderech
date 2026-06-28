@@ -1393,10 +1393,12 @@ body {
           <div class="hcat beach"  onclick="filterSaved(this,'beach')">🏖 חוף</div>
           <div class="hcat art"    onclick="filterSaved(this,'art')">🎨 אמנות</div>
         </div>
+        <div id="saved-regions" class="hscroll" style="display:none;gap:7px;overflow-x:auto;padding:6px 0 0;scrollbar-width:none;"></div>
       </div>
       <div id="saved-list" style="padding:12px 12px 24px;overflow-y:auto;"></div>
       <div id="saved-share-bar" style="display:none;position:fixed;bottom:calc(var(--nav-h) + var(--safe-b));left:0;right:0;z-index:1100;padding:12px 14px;background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -2px 12px rgba(0,0,0,.12);gap:10px;align-items:center;">
         <button onclick="toggleSavedSelect()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:13px 16px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer;">ביטול</button>
+        <button onclick="selectAllSaved()" style="background:var(--brand-pale);border:1px solid var(--brand);color:var(--brand);border-radius:12px;padding:13px 14px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;">בחר הכל</button>
         <button id="saved-share-go" onclick="shareSelected()" style="flex:1;background:var(--brand);color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;opacity:.5;">📤 שתף (0)</button>
       </div>
     </div>
@@ -3039,6 +3041,7 @@ function toggleBS() {
 var savedCatFilter = "all";
 var savedSelectMode = false;
 var savedSelected = new Set();
+var savedRegionFilter = "all";
 function filterSaved(el, cat) {
   document.querySelectorAll("#s-saved .hcat").forEach(c => c.classList.remove("on"));
   el.classList.add("on");
@@ -3047,7 +3050,9 @@ function filterSaved(el, cat) {
 }
 
 function renderSaved(cat) {
-  const filtered = cat === "all" ? places : places.filter(p => p.cat === cat);
+  renderSavedRegions();
+  let filtered = cat === "all" ? places : places.filter(p => p.cat === cat);
+  if (savedRegionFilter !== "all") filtered = filtered.filter(p => regionOf(p) === savedRegionFilter);
   const el = document.getElementById("saved-list");
   const countEl = document.getElementById("saved-count");
   if (countEl) countEl.textContent = filtered.length;
@@ -3064,6 +3069,50 @@ function renderSaved(cat) {
     }
     return "<div style=\"display:flex;gap:12px;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid var(--border);cursor:pointer;\" onclick=\"goTo('home')\"><div style=\"width:46px;height:46px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;margin-bottom:3px;\">" + esc(p.name) + "</div><div style=\"font-size:11px;color:var(--text2);margin-bottom:6px;\">📍 " + esc(p.loc||"") + " · " + esc(p.time||"") + "</div><div style=\"display:flex;gap:6px;\"><span style=\"font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;color:white;background:" + (CC[p.cat]||"#2C6E5A") + "\">" + esc(CN[p.cat]||p.cat) + "</span></div>" + byLine + "</div><div style=\"display:flex;flex-direction:column;gap:6px;\"><button onclick=\"event.stopPropagation();sharePlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;\">📤</button><button onclick=\"event.stopPropagation();editPlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--brand);cursor:pointer;font-size:13px;font-weight:700;font-family:Heebo,sans-serif;\">✏️</button><button onclick=\"event.stopPropagation();deletePlace('" + idStr(p.id) + "')\" style=\"background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;\">🗑</button></div></div>";
   }).join("");
+}
+
+// ── GEOGRAPHIC REGIONS (approximate, from lat/lng) ──
+function regionOf(p){
+  var la = Number(p.lat), ln = Number(p.lng);
+  if (!isFinite(la) || !isFinite(ln) || (la === 0 && ln === 0)) return "";
+  if (la < 29.4 || la > 33.4 || ln < 34.2 || ln > 35.95) return "🌍 חו\"ל";
+  if (la >= 32.7  && ln >= 35.6) return "🌋 רמת הגולן";
+  if (la >= 32.95)               return "⛰️ גליל עליון";
+  if (la >= 32.45 && ln >= 35.1) return "🌄 גליל תחתון ועמקים";
+  if (la >= 32.45)               return "🌊 חיפה והכרמל";
+  if (la >= 32.12)               return "🏖️ השרון";
+  if (ln >= 35.0  && la >= 31.6) return "🏛️ ירושלים וההרים";
+  if (la >= 31.93)               return "🏙️ גוש דן";
+  if (la >= 31.55)               return "🌾 שפלה";
+  if (la >= 30.2)                return "🏜️ דרום והנגב";
+  return "🐠 אילת והערבה";
+}
+function renderSavedRegions(){
+  var el = document.getElementById("saved-regions");
+  if (!el) return;
+  var present = [], seen = {};
+  places.forEach(function(p){ var r = regionOf(p); if (r && !seen[r]) { seen[r] = 1; present.push(r); } });
+  window._savedRegions = present;
+  if (present.length <= 1) { el.style.display = "none"; el.innerHTML = ""; if (savedRegionFilter !== "all") savedRegionFilter = "all"; return; }
+  el.style.display = "flex";
+  function chip(label, active, oc){ return '<div onclick="' + oc + '" style="flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;cursor:pointer;border:1.5px solid ' + (active?'var(--brand)':'var(--border)') + ';background:' + (active?'var(--brand)':'var(--surface2)') + ';color:' + (active?'#fff':'var(--text2)') + ';">' + label + '</div>'; }
+  var html = chip("📍 כל האזורים", savedRegionFilter === "all", "filterSavedRegionIdx(-1)");
+  present.forEach(function(r, i){ html += chip(esc(r), savedRegionFilter === r, "filterSavedRegionIdx(" + i + ")"); });
+  el.innerHTML = html;
+}
+function filterSavedRegionIdx(i){
+  savedRegionFilter = (i < 0) ? "all" : (window._savedRegions[i] || "all");
+  renderSaved(savedCatFilter || "all");
+}
+function selectAllSaved(){
+  var cat = savedCatFilter || "all";
+  var filtered = cat === "all" ? places : places.filter(function(p){ return p.cat === cat; });
+  if (savedRegionFilter !== "all") filtered = filtered.filter(function(p){ return regionOf(p) === savedRegionFilter; });
+  var ids = filtered.map(function(p){ return String(p.id); });
+  if (ids.length > 30) { ids = ids.slice(0, 30); toast("נבחרו 30 הראשונים (מקסימום לשיתוף)"); }
+  savedSelected = new Set(ids);
+  updateSavedShareBar();
+  renderSaved(cat);
 }
 
 // ── SHARE MULTIPLE PLACES (select mode on the Saved screen) ──
