@@ -1459,6 +1459,11 @@ body {
           <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:10px">תחנות בדרך עוזרת לשמור מקומות שמוצאים ברשתות ולמצוא אותם בדרך. התחנות נשמרות בענן ומסונכרנות בין המכשירים שלך.</div>
           <button class="btn-sec" style="cursor:pointer" onclick="openHelp()">❓ איך זה עובד</button>
         </div>
+        <div class="card">
+          <div class="card-lbl">פידבק 💬</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">יש רעיון, באג, או משהו שמפריע? נשמח לשמוע — זה ממש עוזר לנו לשפר. 🙏</div>
+          <button class="btn-primary" onclick="openFeedback()">💬 שלח פידבק</button>
+        </div>
         <div class="card" id="admin-card" style="display:none;">
           <div class="card-lbl">ניהול 📊</div>
           <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">סטטיסטיקות שימוש — משתמשים, מקומות ושיתופים.</div>
@@ -2006,6 +2011,39 @@ function closeAdmin() {
   if (o) o.style.display = "none";
 }
 
+// ── FEEDBACK ──
+function openFeedback() {
+  var ov = document.getElementById("feedback-overlay");
+  if (!ov) { ov = document.createElement("div"); ov.id = "feedback-overlay"; ov.style.cssText = "display:none;position:fixed;inset:0;z-index:1300;background:var(--bg);overflow-y:auto;"; document.body.appendChild(ov); }
+  ov.innerHTML =
+    "<div style=\"position:sticky;top:0;background:linear-gradient(145deg,var(--brand-l),var(--brand));color:#fff;padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow-md);\"><div style=\"font-size:18px;font-weight:800;\">פידבק 💬</div><button onclick=\"closeFeedback()\" style=\"background:rgba(255,255,255,.2);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;line-height:1;\">✕</button></div>" +
+    "<div style=\"padding:18px 16px 32px;max-width:560px;margin:0 auto;\">" +
+      "<div style=\"font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:14px;\">מה אהבתם? מה חסר? מה לא עבד? כל מילה עוזרת לנו לשפר 🙏</div>" +
+      "<textarea id=\"fb-text\" placeholder=\"כתבו כאן...\" style=\"width:100%;height:160px;border:1.5px solid var(--border);border-radius:12px;padding:12px;font-family:'Heebo',sans-serif;font-size:15px;background:var(--surface);color:var(--text);resize:vertical;outline:none;box-sizing:border-box;\"></textarea>" +
+      "<button onclick=\"sendFeedback()\" id=\"fb-send\" class=\"btn-primary\" style=\"margin-top:14px;\">שליחה 🚀</button>" +
+    "</div>";
+  ov.style.display = "block";
+  setTimeout(function(){ var t = document.getElementById("fb-text"); if (t) t.focus(); }, 120);
+}
+function closeFeedback() { var ov = document.getElementById("feedback-overlay"); if (ov) ov.style.display = "none"; }
+function sendFeedback() {
+  var t = document.getElementById("fb-text");
+  var txt = ((t && t.value) || "").trim();
+  if (!txt) { toast("כתבו משהו קודם 🙂"); return; }
+  if (txt.length > 3000) txt = txt.slice(0, 3000);
+  var btn = document.getElementById("fb-send");
+  if (btn) { btn.disabled = true; btn.textContent = "שולח..."; }
+  if (!db) { if (btn) { btn.disabled = false; btn.textContent = "שליחה 🚀"; } toast("לא ניתן לשלוח כרגע"); return; }
+  db.collection("feedback").add({
+    text: txt,
+    uid: (currentUser && currentUser.uid) || "",
+    email: (currentUser && (currentUser.email || currentUser.displayName)) || "",
+    ua: (navigator.userAgent || "").slice(0, 300),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function(){ closeFeedback(); toast("תודה על הפידבק! 🙏"); })
+    .catch(function(e){ console.warn("feedback failed", e); if (btn) { btn.disabled = false; btn.textContent = "שליחה 🚀"; } toast("לא הצלחנו לשלוח כרגע — נסו שוב"); });
+}
+
 async function loadAdminStats() {
   const el = document.getElementById("admin-content");
   if (!el) return;
@@ -2036,6 +2074,16 @@ async function loadAdminStats() {
     html += `<div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:8px;">לפי משתמש</div>`;
     html += rows.map(r => `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);"><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;word-break:break-all;">${esc(r.email)}</div><div style="font-size:11px;color:var(--text3);">כניסה אחרונה: ${fmt(r.lastSeen)}</div></div><div style="font-size:15px;font-weight:800;color:var(--brand);flex-shrink:0;">${r.count}</div></div>`).join("") || '<div style="color:var(--text2);font-size:13px;">אין נתונים עדיין.</div>';
     el.innerHTML = html;
+    // Feedback — separate fetch so a missing rule/empty set doesn't break the dashboard.
+    try {
+      const fbSnap = await db.collection("feedback").orderBy("createdAt", "desc").limit(50).get();
+      let fbHtml = '<div style="font-size:12px;font-weight:700;color:var(--text3);margin:20px 0 8px;">💬 פידבק (' + fbSnap.size + ')</div>';
+      if (fbSnap.empty) fbHtml += '<div style="color:var(--text2);font-size:13px;">אין פידבקים עדיין.</div>';
+      else fbSnap.forEach(d => { const f = d.data() || {}; fbHtml += '<div style="background:var(--surface2);border-radius:12px;padding:11px;margin-bottom:8px;"><div style="font-size:13px;line-height:1.6;white-space:pre-wrap;">' + esc(f.text || "") + '</div><div style="font-size:11px;color:var(--text3);margin-top:6px;">' + esc(f.email || "אנונימי") + ' · ' + fmt(f.createdAt) + '</div></div>'; });
+      el.innerHTML += fbHtml;
+    } catch (fe) {
+      el.innerHTML += '<div style="font-size:12px;color:var(--text3);margin-top:16px;">💬 פידבק לא נטען — ודא שחוקי ה-Firestore כוללים את אוסף <b>feedback</b>.</div>';
+    }
   } catch (e) {
     el.innerHTML = '<div style="color:var(--danger,#c0392b);font-size:13px;">שגיאה בטעינה: ' + esc(e.message || String(e)) + '<br>(ודא שחוקי ה-Firestore עודכנו.)</div>';
   }
@@ -2173,7 +2221,7 @@ function importPlaces(file) {
 // ── NAVIGATION ──
 function goTo(screen) {
   // Close any open full-screen overlay so navigation isn't hidden behind it.
-  closeHelp(); if (typeof closeAdmin === "function") closeAdmin();
+  closeHelp(); if (typeof closeAdmin === "function") closeAdmin(); if (typeof closeFeedback === "function") closeFeedback();
   if (curScreen === screen) return;
   // Cancel any pending edit when leaving the add screen, so the next save
   // doesn't accidentally delete the place we were editing.
