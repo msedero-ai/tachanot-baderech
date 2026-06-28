@@ -3237,7 +3237,14 @@ function addReceived() {
   closeRecv();
   if (added) renderHomeMap();
   goTo("home");
-  toast(added ? ("נוספו " + added + " מקומות 🗺️" + (skipped?(" · " + skipped + " כבר היו אצלך"):"")) : "כל המקומות כבר אצלך ✓");
+  var msg = added ? ("נוספו " + added + " מקומות 🗺️" + (skipped?(" · " + skipped + " כבר היו אצלך"):"")) : "כל המקומות כבר אצלך ✓";
+  toast(msg);
+  // Gentle nudge: an unregistered recipient saved locally only — offer cloud backup.
+  if (added && !currentUser) {
+    setTimeout(function(){
+      if (confirm("💾 המקומות נשמרו במכשיר הזה.\nכדי לשמור אותם בענן (ושלא יימחקו) — להתחבר עם Google?")) signIn();
+    }, 700);
+  }
 }
 
 // ── THEME ──
