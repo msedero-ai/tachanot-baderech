@@ -2071,16 +2071,16 @@ async function loadAdminStats() {
     const fmt = ts => (ts && ts.toDate) ? ts.toDate().toLocaleDateString("he-IL") : "—";
     const stat = (v, l) => `<div style="flex:1 1 calc(50% - 5px);background:var(--surface2);border-radius:12px;padding:12px;text-align:center;"><div style="font-size:22px;font-weight:900;color:var(--brand);">${v}</div><div style="font-size:11px;color:var(--text2);">${l}</div></div>`;
     let html = `<div style="display:flex;flex-wrap:wrap;gap:9px;margin-bottom:16px;">${stat(rows.length, "משתמשים")}${stat(placesSnap.size, "מקומות")}${stat(placeShares, "שיתופי מקום")}${stat(appShares, "שיתופי אפליקציה")}</div>`;
-    html += `<div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:8px;">לפי משתמש</div>`;
-    html += rows.map(r => `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);"><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;word-break:break-all;">${esc(r.email)}</div><div style="font-size:11px;color:var(--text3);">כניסה אחרונה: ${fmt(r.lastSeen)}</div></div><div style="font-size:15px;font-weight:800;color:var(--brand);flex-shrink:0;">${r.count}</div></div>`).join("") || '<div style="color:var(--text2);font-size:13px;">אין נתונים עדיין.</div>';
+    const usersRows = rows.map(r => `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);"><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;word-break:break-all;">${esc(r.email)}</div><div style="font-size:11px;color:var(--text3);">כניסה אחרונה: ${fmt(r.lastSeen)}</div></div><div style="font-size:15px;font-weight:800;color:var(--brand);flex-shrink:0;">${r.count}</div></div>`).join("") || '<div style="color:var(--text2);font-size:13px;">אין נתונים עדיין.</div>';
+    html += `<details open style="margin-bottom:6px;"><summary style="cursor:pointer;font-size:13px;font-weight:800;color:var(--text);padding:6px 0;">👥 לפי משתמש (${rows.length})</summary><div style="margin-top:6px;">${usersRows}</div></details>`;
     el.innerHTML = html;
     // Feedback — separate fetch so a missing rule/empty set doesn't break the dashboard.
     try {
       const fbSnap = await db.collection("feedback").orderBy("createdAt", "desc").limit(50).get();
-      let fbHtml = '<div style="font-size:12px;font-weight:700;color:var(--text3);margin:20px 0 8px;">💬 פידבק (' + fbSnap.size + ')</div>';
-      if (fbSnap.empty) fbHtml += '<div style="color:var(--text2);font-size:13px;">אין פידבקים עדיין.</div>';
-      else fbSnap.forEach(d => { const f = d.data() || {}; fbHtml += '<div style="background:var(--surface2);border-radius:12px;padding:11px;margin-bottom:8px;"><div style="font-size:13px;line-height:1.6;white-space:pre-wrap;">' + esc(f.text || "") + '</div><div style="font-size:11px;color:var(--text3);margin-top:6px;">' + esc(f.email || "אנונימי") + ' · ' + fmt(f.createdAt) + '</div></div>'; });
-      el.innerHTML += fbHtml;
+      let fbInner = "";
+      if (fbSnap.empty) fbInner = '<div style="color:var(--text2);font-size:13px;">אין פידבקים עדיין.</div>';
+      else fbSnap.forEach(d => { const f = d.data() || {}; fbInner += '<div style="background:var(--surface2);border-radius:12px;padding:11px;margin-bottom:8px;"><div style="font-size:13px;line-height:1.6;white-space:pre-wrap;">' + esc(f.text || "") + '</div><div style="font-size:11px;color:var(--text3);margin-top:6px;">' + esc(f.email || "אנונימי") + ' · ' + fmt(f.createdAt) + '</div></div>'; });
+      el.innerHTML += '<details open style="margin-top:14px;"><summary style="cursor:pointer;font-size:13px;font-weight:800;color:var(--text);padding:6px 0;">💬 פידבק (' + fbSnap.size + ')</summary><div style="margin-top:6px;">' + fbInner + '</div></details>';
     } catch (fe) {
       el.innerHTML += '<div style="font-size:12px;color:var(--text3);margin-top:16px;">💬 פידבק לא נטען — ודא שחוקי ה-Firestore כוללים את אוסף <b>feedback</b>.</div>';
     }
