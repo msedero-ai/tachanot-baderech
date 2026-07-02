@@ -1396,11 +1396,6 @@ body {
         <div id="saved-regions" class="hscroll" style="display:none;gap:7px;overflow-x:auto;padding:6px 0 0;scrollbar-width:none;"></div>
       </div>
       <div id="saved-list" style="padding:12px 12px 24px;overflow-y:auto;"></div>
-      <div id="saved-share-bar" style="display:none;position:fixed;bottom:calc(var(--nav-h) + var(--safe-b));left:0;right:0;z-index:1100;padding:12px 14px;background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -2px 12px rgba(0,0,0,.12);gap:10px;align-items:center;">
-        <button onclick="toggleSavedSelect()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:13px 16px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer;">ביטול</button>
-        <button onclick="selectAllSaved()" style="background:var(--brand-pale);border:1px solid var(--brand);color:var(--brand);border-radius:12px;padding:13px 14px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;">בחר הכל</button>
-        <button id="saved-share-go" onclick="shareSelected()" style="flex:1;background:var(--brand);color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;opacity:.5;">📤 שתף (0)</button>
-      </div>
     </div>
 
     <!-- PROFILE -->
@@ -1462,6 +1457,14 @@ body {
       </div>
     </div>
 
+  </div>
+
+  <!-- Multi-share action bar (absolute within .app so it stays inside the
+       desktop phone frame; on mobile .app fills the viewport so same effect) -->
+  <div id="saved-share-bar" style="display:none;position:absolute;bottom:calc(var(--nav-h) + var(--safe-b));left:0;right:0;z-index:1100;padding:12px 14px;background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -2px 12px rgba(0,0,0,.12);gap:10px;align-items:center;">
+    <button onclick="toggleSavedSelect()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:13px 16px;font-family:Heebo,sans-serif;font-size:15px;font-weight:700;cursor:pointer;">ביטול</button>
+    <button onclick="selectAllSaved()" style="background:var(--brand-pale);border:1px solid var(--brand);color:var(--brand);border-radius:12px;padding:13px 14px;font-family:Heebo,sans-serif;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;">בחר הכל</button>
+    <button id="saved-share-go" onclick="shareSelected()" style="flex:1;background:var(--brand);color:#fff;border:none;border-radius:12px;padding:13px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;opacity:.5;">📤 שתף (0)</button>
   </div>
 
   <!-- BOTTOM NAV -->
@@ -2005,7 +2008,8 @@ function closeAdmin() {
 // ── FEEDBACK ──
 function openFeedback() {
   var ov = document.getElementById("feedback-overlay");
-  if (!ov) { ov = document.createElement("div"); ov.id = "feedback-overlay"; ov.style.cssText = "display:none;position:fixed;inset:0;z-index:1300;background:var(--bg);overflow-y:auto;"; document.body.appendChild(ov); }
+  // absolute within .app (not fixed) so it stays inside the desktop phone frame.
+  if (!ov) { ov = document.createElement("div"); ov.id = "feedback-overlay"; ov.style.cssText = "display:none;position:absolute;inset:0;z-index:1300;background:var(--bg);overflow-y:auto;"; (document.getElementById("app") || document.body).appendChild(ov); }
   ov.innerHTML =
     "<div style=\"position:sticky;top:0;background:linear-gradient(145deg,var(--brand-l),var(--brand));color:#fff;padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow-md);\"><div style=\"font-size:18px;font-weight:800;\">פידבק 💬</div><button onclick=\"closeFeedback()\" style=\"background:rgba(255,255,255,.2);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;line-height:1;\">✕</button></div>" +
     "<div style=\"padding:18px 16px 32px;max-width:560px;margin:0 auto;\">" +
@@ -3153,7 +3157,9 @@ function loadSharedPlaces(rawItems, by, region) {
   window._recvBy = String(by||"").slice(0,80);
   window._recvPick = items.map(function(p){ return !findDuplicate(p); }); // pre-uncheck places already saved
   var ov = document.getElementById("recv-overlay");
-  if (!ov) { ov = document.createElement("div"); ov.id = "recv-overlay"; ov.style.cssText = "display:none;position:fixed;inset:0;z-index:1300;background:var(--bg);overflow-y:auto;"; document.body.appendChild(ov); }
+  // absolute within .app (not fixed) so it stays inside the desktop phone frame;
+  // flex column so the footer button pins to the frame bottom while the list scrolls.
+  if (!ov) { ov = document.createElement("div"); ov.id = "recv-overlay"; ov.style.cssText = "display:none;position:absolute;inset:0;z-index:1300;background:var(--bg);flex-direction:column;"; (document.getElementById("app") || document.body).appendChild(ov); }
   var byTxt = window._recvBy ? ("<div style=\"font-size:13px;opacity:.95;margin-top:4px;\">מ-" + esc(window._recvBy) + " 🎁</div>") : "";
   var rows = items.map(function(p,i){
     var on = window._recvPick[i];
@@ -3161,10 +3167,10 @@ function loadSharedPlaces(rawItems, by, region) {
     return "<div onclick=\"recvTogglePick(" + i + ")\" id=\"recv-row-" + i + "\" style=\"display:flex;gap:12px;align-items:center;padding:12px;background:var(--surface);border-radius:14px;margin-bottom:9px;border:1.5px solid " + (on?"var(--brand)":"var(--border)") + ";cursor:pointer;opacity:" + (on?"1":".75") + ";\"><div id=\"recv-pick-" + i + "\" style=\"width:24px;height:24px;border-radius:7px;border:2px solid " + (on?"var(--brand)":"var(--text3)") + ";background:" + (on?"var(--brand)":"transparent") + ";color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;\">" + (on?"✓":"") + "</div><div style=\"width:40px;height:40px;border-radius:11px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;\">" + (CE[p.cat]||"📍") + "</div><div style=\"flex:1;min-width:0;\"><div style=\"font-size:14px;font-weight:700;\">" + esc(p.name) + "</div><div style=\"font-size:11px;color:var(--text2);\">📍 " + esc(p.loc||"") + "</div>" + dupBadge + "</div></div>";
   }).join("");
   ov.innerHTML =
-    "<div style=\"position:sticky;top:0;background:linear-gradient(145deg,var(--brand-l),var(--brand));color:#fff;padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow-md);\"><div><div style=\"font-size:18px;font-weight:800;\">👋 קיבלת " + items.length + " מקומות" + (window._recvRegion ? (" · " + esc(window._recvRegion)) : "") + "</div>" + byTxt + "</div><button onclick=\"closeRecv()\" style=\"background:rgba(255,255,255,.2);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;line-height:1;\">✕</button></div>" +
-    "<div style=\"padding:16px 14px 120px;max-width:560px;margin:0 auto;\"><div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;\"><div style=\"font-size:13px;color:var(--text2);\">בחרו אילו להוסיף:</div><button onclick=\"recvToggleAll()\" id=\"recv-allbtn\" style=\"background:none;border:none;color:var(--brand);font-weight:700;font-size:13px;cursor:pointer;font-family:Heebo,sans-serif;\">נקה הכל</button></div>" + rows + "</div>" +
-    "<div style=\"position:fixed;bottom:0;left:0;right:0;padding:12px 14px calc(env(safe-area-inset-bottom,0px) + 14px);background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -2px 12px rgba(0,0,0,.12);\"><button id=\"recv-add\" onclick=\"addReceived()\" style=\"width:100%;background:var(--brand);color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;\">➕ הוסף את כולם</button></div>";
-  ov.style.display = "block";
+    "<div style=\"flex-shrink:0;background:linear-gradient(145deg,var(--brand-l),var(--brand));color:#fff;padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow-md);\"><div><div style=\"font-size:18px;font-weight:800;\">👋 קיבלת " + items.length + " מקומות" + (window._recvRegion ? (" · " + esc(window._recvRegion)) : "") + "</div>" + byTxt + "</div><button onclick=\"closeRecv()\" style=\"background:rgba(255,255,255,.2);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;line-height:1;\">✕</button></div>" +
+    "<div style=\"flex:1;overflow-y:auto;min-height:0;\"><div style=\"padding:16px 14px 24px;max-width:560px;margin:0 auto;\"><div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;\"><div style=\"font-size:13px;color:var(--text2);\">בחרו אילו להוסיף:</div><button onclick=\"recvToggleAll()\" id=\"recv-allbtn\" style=\"background:none;border:none;color:var(--brand);font-weight:700;font-size:13px;cursor:pointer;font-family:Heebo,sans-serif;\">נקה הכל</button></div>" + rows + "</div></div>" +
+    "<div style=\"flex-shrink:0;padding:12px 14px calc(env(safe-area-inset-bottom,0px) + 14px);background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -2px 12px rgba(0,0,0,.12);\"><button id=\"recv-add\" onclick=\"addReceived()\" style=\"width:100%;background:var(--brand);color:#fff;border:none;border-radius:12px;padding:14px;font-family:Heebo,sans-serif;font-size:16px;font-weight:800;cursor:pointer;\">➕ הוסף את כולם</button></div>";
+  ov.style.display = "flex";
   recvUpdateAddBtn();
 }
 function recvTogglePick(i) {
